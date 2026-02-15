@@ -1,5 +1,7 @@
 .PHONY: setup up down test register-demo run-batch run-loadtest gate-demo train clean
 
+export PYTHONPATH := $(shell pwd)
+
 # ---------------------------------------------------------------------------
 # Local development (no Docker)
 # ---------------------------------------------------------------------------
@@ -32,7 +34,7 @@ test:
 	python -m pytest tests/ -v
 
 serve:
-	uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000
+	PYTHONPATH=$(shell pwd) uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000
 
 # ---------------------------------------------------------------------------
 # Docker
