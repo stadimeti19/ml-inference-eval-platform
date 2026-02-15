@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: platform
+      POSTGRES_PASSWORD: platform
+      POSTGRES_DB: platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: ops/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://platform:platform@postgres:5432/platform
+      REDIS_URL: redis://redis:6379/0
+      MODEL_ARTIFACTS_DIR: /app/artifacts
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - artifacts:/app/artifacts
+      - data:/app/data
+
+  worker:
+    build:
+      context: ..
+      dockerfile: ops/Dockerfile
+    command: python -m app.jobs.worker
+    environment:
+      DATABASE_URL: postgresql://platform:platform@postgres:5432/platform
+      REDIS_URL: redis://redis:6379/0
+      MODEL_ARTIFACTS_DIR: /app/artifacts
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - artifacts:/app/artifacts
+      - data:/app/data
+
+volumes:
+  pgdata:
+  artifacts:
+  data:
