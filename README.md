@@ -7,37 +7,105 @@ A production-grade **Foundation Model Inference & Evaluation Platform** built wi
 ## Architecture
 
 ```
-                          ┌──────────────┐
-                          │ platform_cli │
-                          │  (Click CLI) │
-                          └──────┬───────┘
-                   register │ promote │ rollback │ gate
-                             │
-              ┌──────────────▼──────────────┐
-              │        Model Registry       │
-              │  artifacts/{name}/{version}  │
-              └──────────────┬──────────────┘
-                             │ metadata
-         ┌───────────────────▼───────────────────┐
-         │             PostgreSQL                 │
-         │  model_versions │ batch_jobs │ gates   │
-         └───────────────────┬───────────────────-┘
-                             │
-        ┌────────────────────┼────────────────────┐
-        │                    │                     │
-   ┌────▼─────┐     ┌───────▼────────┐    ┌──────▼───────┐
-   │ FastAPI   │     │  RQ Worker     │    │  Eval /      │
-   │ /predict  │     │  batch jobs    │    │  Regression  │
-   │ /batch    │     │                │    │  Gates       │
-   │ /health   │     └───────┬────────┘    └──────────────┘
-   │ /metrics  │             │
-   └────┬──────┘       ┌─────▼─────┐
-        │              │   Redis   │
-        │              │   Queue   │
-   ┌────▼──────┐       └───────────┘
-   │Prometheus │
-   │  metrics  │
-   └───────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              CONTROL PLANE                                  │
+│                                                                             │
+│   $ python -m platform_cli                                                  │
+│   ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐          │
+│   │  register   │  │  promote   │  │  rollback  │  │    gate    │          │
+│   └─────┬──────┘  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘          │
+│         │               │               │               │                   │
+│         └───────────────┴───────┬───────┴───────────────┘                   │
+│                                 ▼                                            │
+│                    ┌────────────────────────┐                                │
+│                    │    Model Registry      │                                │
+│                    │  copy .pt to artifacts │                                │
+│                    │  write metadata to DB  │                                │
+│                    └────────────────────────┘                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              DATA PLANE                                     │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                     FastAPI  (port 8000)                            │    │
+│  │                                                                     │    │
+│  │  POST /predict ──► resolve prod model ──► load from cache ──► CNN  │    │
+│  │                                           (or disk if miss)   │     │    │
+│  │                                                               ▼     │    │
+│  │                                                         prediction  │    │
+│  │                                                         + latency   │    │
+│  │                                                                     │    │
+│  │  POST /batch/submit ──► create DB job ──► enqueue to Redis ────┐   │    │
+│  │  GET  /batch/status ──► read DB job                            │   │    │
+│  │                                                                │   │    │
+│  │  GET  /health      ──► {"status": "ok"}                        │   │    │
+│  │  GET  /models      ──► list from DB                            │   │    │
+│  │  GET  /metrics     ──► Prometheus exposition                   │   │    │
+│  └────────────────────────────────────────────────────────────────┘   │    │
+│                                                                  │        │
+│  ┌───────────────┐    ┌──────────────────────────────────────────▼───┐    │
+│  │               │    │              RQ Worker                       │    │
+│  │     Redis     │◄───│                                              │    │
+│  │   (queue +    │    │  dequeue job                                 │    │
+│  │    broker)    │───►│    ├── load model                            │    │
+│  │               │    │    ├── load MNIST subset (N images)          │    │
+│  │               │    │    ├── run batch inference                   │    │
+│  └───────────────┘    │    ├── compute accuracy, p50/p95/p99, QPS   │    │
+│                       │    └── write results to DB                   │    │
+│                       └──────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            STORAGE LAYER                                    │
+│                                                                             │
+│  ┌────────────────────────────┐    ┌────────────────────────────────────┐  │
+│  │   PostgreSQL / SQLite      │    │   Filesystem (artifacts/)          │  │
+│  │                            │    │                                    │  │
+│  │   model_versions           │    │   artifacts/                       │  │
+│  │     model_name             │    │   └── mnist_cnn/                   │  │
+│  │     model_version          │    │       └── v1.0.0/                  │  │
+│  │     status (staging|prod)  │    │           └── model.pt (weights)   │  │
+│  │     artifact_path          │    │                                    │  │
+│  │     git_sha, tags, metrics │    └────────────────────────────────────┘  │
+│  │                            │                                            │
+│  │   batch_jobs               │                                            │
+│  │     status, result_metrics │                                            │
+│  │                            │                                            │
+│  │   gate_results             │                                            │
+│  │     passed, details        │                                            │
+│  └────────────────────────────┘                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           OBSERVABILITY                                     │
+│                                                                             │
+│  Prometheus Metrics (GET /metrics)         Structured JSON Logs (stdout)    │
+│  ├── request_latency_seconds (histogram)   ├── event: "model_registered"   │
+│  ├── request_count (counter)               ├── event: "batch_job_succeeded"│
+│  ├── batch_job_duration_seconds            ├── event: "gate_result"        │
+│  └── queue_depth (gauge)                   └── timestamp, level, context   │
+│                                                                             │
+│  Grafana Dashboard (ops/grafana-dashboard.json)                             │
+│  ├── Request rate panel          ├── Batch duration panel                   │
+│  ├── Latency percentiles panel   └── Queue depth panel                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                            ┌─────────────────┐
+                            │   QUALITY GATE   │
+                            │                  │
+                            │  candidate v2    │
+                            │     vs.          │
+                            │  baseline v1     │
+                            │                  │
+                            │  ✓ accuracy      │
+                            │    drop ≤ 1%     │
+                            │                  │
+                            │  ✓ p95 latency   │
+                            │    increase ≤10% │
+                            │                  │
+                            │  ──► PASS/FAIL   │
+                            └─────────────────┘
 ```
 
 ## Features
