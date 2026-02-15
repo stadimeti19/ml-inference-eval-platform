@@ -53,7 +53,13 @@ def run_batch_inference(job_id: str) -> None:
             logger.error("model_not_found", job_id=job_id)
             return
 
-        model = get_model_cached(mv.model_name, mv.model_version, mv.artifact_path)
+        # Resolve architecture from model tags
+        arch = "default"
+        if mv.tags:
+            import json as _json
+            _tags = _json.loads(mv.tags)
+            arch = _tags.get("architecture", "default")
+        model = get_model_cached(mv.model_name, mv.model_version, mv.artifact_path, architecture=arch)
 
         # Load dataset subset
         from app.datasets.mnist import get_mnist_subset

@@ -1,4 +1,4 @@
-.PHONY: setup up down test register-demo run-batch run-loadtest gate-demo train clean
+.PHONY: setup up down test register-demo run-batch run-loadtest gate-demo train train-v2 pipeline clean
 
 export PYTHONPATH := $(shell pwd)
 
@@ -10,10 +10,17 @@ setup:
 	pip install -r requirements.txt
 
 train:
-	python scripts/train_mnist.py
+	python scripts/train_mnist.py --model_version v1.0.0 --architecture default --promote
+
+train-v2:
+	python scripts/train_mnist.py --model_version v2.0.0 --architecture large
 
 register-demo: train
 	@echo "Model trained and registered as mnist_cnn@v1.0.0 (prod)"
+
+pipeline:
+	@echo "=== Running full CI/CD pipeline: train v1 + v2, eval, gate, promote ==="
+	python scripts/run_pipeline.py
 
 run-batch:
 	@echo "Submitting batch job via API..."

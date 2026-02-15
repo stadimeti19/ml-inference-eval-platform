@@ -12,8 +12,9 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader
 
+import torch.nn as nn
+
 from app.datasets.mnist import MNIST_TRANSFORM
-from app.inference.model import MNISTClassifier
 
 
 @dataclass
@@ -32,7 +33,7 @@ def _preprocess_image(image_bytes: bytes) -> torch.Tensor:
 
 
 def predict_single(
-    model: MNISTClassifier, image_b64: str
+    model: nn.Module, image_b64: str
 ) -> tuple[int, float]:
     """Run single-image inference.
 
@@ -59,7 +60,7 @@ def predict_single(
 
 
 def predict_batch(
-    model: MNISTClassifier,
+    model: nn.Module,
     dataloader: DataLoader,
 ) -> BatchResult:
     """Run inference over an entire DataLoader.

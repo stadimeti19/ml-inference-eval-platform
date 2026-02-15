@@ -5,18 +5,23 @@ from __future__ import annotations
 import collections
 import threading
 
-from app.inference.model import MNISTClassifier, load_model
+import torch.nn as nn
+
+from app.inference.model import load_model
 
 _MAX_CACHE_SIZE = 5
 _lock = threading.Lock()
-_cache: collections.OrderedDict[tuple[str, str], MNISTClassifier] = (
+_cache: collections.OrderedDict[tuple[str, str], nn.Module] = (
     collections.OrderedDict()
 )
 
 
 def get_model_cached(
-    model_name: str, model_version: str, artifact_path: str
-) -> MNISTClassifier:
+    model_name: str,
+    model_version: str,
+    artifact_path: str,
+    architecture: str = "default",
+) -> nn.Module:
     """Return a cached model or load it from disk."""
     key = (model_name, model_version)
     with _lock:
@@ -24,7 +29,7 @@ def get_model_cached(
             _cache.move_to_end(key)
             return _cache[key]
 
-    model = load_model(artifact_path)
+    model = load_model(artifact_path, architecture=architecture)
 
     with _lock:
         _cache[key] = model
