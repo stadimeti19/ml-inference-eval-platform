@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import time
 from typing import Optional
 
@@ -12,21 +11,12 @@ from pydantic import BaseModel
 from app.core.logging import get_logger
 from app.core.metrics import REQUEST_COUNT, REQUEST_LATENCY
 from app.db import repositories as repo
-from app.db.models import ModelVersion
 from app.db.session import get_session
 from app.inference.cache import get_model_cached
 from app.inference.predict import predict_single
 
 logger = get_logger(__name__)
 router = APIRouter()
-
-
-def _get_architecture(mv: ModelVersion) -> str:
-    """Extract architecture name from model tags, default to 'default'."""
-    if mv.tags:
-        tags = json.loads(mv.tags)
-        return tags.get("architecture", "default")
-    return "default"
 
 
 # -------------------------------------------------------------------
@@ -72,8 +62,10 @@ def predict(req: PredictRequest) -> PredictResponse:
                 + (f"@{req.model_version}" if req.model_version else " (prod)"),
             )
 
-        arch = _get_architecture(mv)
-        model = get_model_cached(mv.model_name, mv.model_version, mv.artifact_path, architecture=arch)
+        model = get_model_cached(
+            mv.model_name, mv.model_version, mv.artifact_path,
+            architecture=mv.architecture,
+        )
         prediction, latency_ms = predict_single(model, req.image_b64)
 
         total_ms = (time.perf_counter() - start) * 1000.0

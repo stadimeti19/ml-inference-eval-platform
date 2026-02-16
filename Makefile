@@ -1,4 +1,4 @@
-.PHONY: setup up down test register-demo run-batch run-loadtest gate-demo train train-v2 pipeline clean
+.PHONY: setup up down test register-demo run-batch run-loadtest gate-demo train train-v2 pipeline migrate clean
 
 export PYTHONPATH := $(shell pwd)
 
@@ -8,6 +8,9 @@ export PYTHONPATH := $(shell pwd)
 
 setup:
 	pip install -r requirements.txt
+
+migrate:
+	alembic upgrade head
 
 train:
 	python scripts/train_mnist.py --model_version v1.0.0 --architecture default --promote
@@ -63,5 +66,5 @@ docker-batch:
 			-d '{"model_name":"mnist_cnn","dataset_id":"mnist_1000"}' | python -m json.tool
 
 clean:
-	rm -rf artifacts/ reports/ data/ __pycache__ .pytest_cache *.db
+	rm -rf artifacts/ reports/ data/ __pycache__ .pytest_cache *.db platform.db
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

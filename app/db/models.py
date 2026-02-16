@@ -30,6 +30,9 @@ class ModelVersion(Base):
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="staging"
     )
+    architecture: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="default", server_default="default"
+    )
     metrics: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON string
 
     def __repr__(self) -> str:

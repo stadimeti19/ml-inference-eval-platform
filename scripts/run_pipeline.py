@@ -56,7 +56,8 @@ def _train_and_register(
         model_name=MODEL_NAME,
         model_version=version,
         artifact_path=saved_path,
-        tags={"framework": "pytorch", "dataset": "mnist", "architecture": architecture},
+        tags={"framework": "pytorch", "dataset": "mnist"},
+        architecture=architecture,
     )
     print(f"  Registered {MODEL_NAME}@{version} (arch={architecture})")
 
@@ -82,13 +83,10 @@ def _run_batch_eval(version: str) -> dict:
                 print(f"  {MODEL_NAME}@{version} already has eval metrics, skipping.")
                 return existing
 
-        # Resolve architecture
-        arch = "default"
-        if mv.tags:
-            tags = json.loads(mv.tags)
-            arch = tags.get("architecture", "default")
-
-        model = get_model_cached(mv.model_name, mv.model_version, mv.artifact_path, architecture=arch)
+        model = get_model_cached(
+            mv.model_name, mv.model_version, mv.artifact_path,
+            architecture=mv.architecture,
+        )
 
         images, labels = get_mnist_subset(n=N_EVAL_SAMPLES)
         dataset = list(zip(images.split(BATCH_SIZE), labels.split(BATCH_SIZE)))

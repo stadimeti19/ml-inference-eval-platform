@@ -67,8 +67,8 @@ def main() -> None:
         tags={
             "framework": "pytorch",
             "dataset": "mnist",
-            "architecture": args.architecture,
         },
+        architecture=args.architecture,
     )
     print(f"Registered: {mv.model_name}@{mv.model_version} (arch={args.architecture})")
 

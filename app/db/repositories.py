@@ -25,6 +25,7 @@ def register_model(
     tags: dict[str, Any] | None = None,
     status: str = "staging",
     metrics: dict[str, Any] | None = None,
+    architecture: str = "default",
 ) -> ModelVersion:
     """Insert a new model version row."""
     mv = ModelVersion(
@@ -35,6 +36,7 @@ def register_model(
         tags=json.dumps(tags) if tags else None,
         status=status,
         metrics=json.dumps(metrics) if metrics else None,
+        architecture=architecture,
     )
     session.add(mv)
     session.commit()

@@ -26,6 +26,7 @@ def register(
     artifact_path: str,
     git_sha: str | None = None,
     tags: dict[str, Any] | None = None,
+    architecture: str = "default",
 ) -> ModelVersion:
     """Copy a model artifact into the registry and record it in the DB."""
     init_db()
@@ -57,12 +58,14 @@ def register(
             artifact_path=dest_file,
             git_sha=git_sha,
             tags=tags,
+            architecture=architecture,
         )
         logger.info(
             "model_registered",
             model_name=model_name,
             model_version=model_version,
             artifact_path=dest_file,
+            architecture=architecture,
         )
         return mv
     finally:
