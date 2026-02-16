@@ -26,3 +26,22 @@ QUEUE_DEPTH = Gauge(
     "queue_depth",
     "Current number of jobs in the queue",
 )
+
+# Shadow / canary deployment metrics
+SHADOW_LATENCY = Histogram(
+    "shadow_latency_seconds",
+    "Latency of shadow model inference in seconds",
+    labelnames=["model_name", "shadow_version"],
+)
+
+SHADOW_DISAGREEMENT = Counter(
+    "shadow_disagreement_total",
+    "Number of requests where shadow model disagreed with prod",
+    labelnames=["model_name", "shadow_version"],
+)
+
+SHADOW_REQUEST_COUNT = Counter(
+    "shadow_request_total",
+    "Total shadow inference requests",
+    labelnames=["model_name", "shadow_version"],
+)

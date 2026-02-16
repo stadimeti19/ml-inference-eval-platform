@@ -12,6 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.routes_batch import router as batch_router
 from app.api.routes_health import router as health_router
 from app.api.routes_inference import router as inference_router
+from app.api.routes_slo import router as slo_router
 from app.core.config import get_settings
 from app.core.logging import get_logger, setup_logging
 from app.db.session import init_db
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(inference_router)
     app.include_router(batch_router)
+    app.include_router(slo_router)
 
     return app
 
