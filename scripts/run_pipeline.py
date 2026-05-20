@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 BASELINE_VERSION = "v1.0.0"
 CANDIDATE_VERSION = "v2.0.0"
 MODEL_NAME = "mnist_cnn"
-N_EVAL_SAMPLES = 1000
+N_EVAL_SAMPLES = 10000
 BATCH_SIZE = 64
 
 

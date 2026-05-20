@@ -126,6 +126,12 @@ async def run_benchmark(
         mnist_data_dir=mnist_data_dir,
         seed=seed + 1,
     )
+    payload_meta = _payload_metadata(
+        count=requests,
+        payload_source=payload_source,
+        payload_mode=payload_mode,
+        mnist_data_dir=mnist_data_dir,
+    )
     async with httpx.AsyncClient(timeout=30.0) as client:
         for payload in warmup_payloads:
             await _send_request(client, url, payload)
@@ -166,6 +172,7 @@ async def run_benchmark(
         "warmup_requests": warmup_requests,
         "payload_source": payload_source,
         "payload_mode": payload_mode,
+        **payload_meta,
         "summary": summary,
     }
 
@@ -279,7 +286,49 @@ def _build_payloads(
             )
             for _ in range(count)
         ]
-    raise ValueError("payload_mode must be 'fixed' or 'random_per_request'")
+    if payload_mode == "sequential":
+        if not payload_source.startswith("mnist_"):
+            raise ValueError("sequential payload mode requires a MNIST payload source")
+        dataset_len = _mnist_len(mnist_data_dir, train=payload_source == "mnist_train")
+        return [
+            make_payload(
+                model_name=model_name,
+                model_version=model_version,
+                shadow_version=shadow_version,
+                payload_source=payload_source,
+                mnist_data_dir=mnist_data_dir,
+                mnist_index=i % dataset_len,
+            )
+            for i in range(count)
+        ]
+    raise ValueError(
+        "payload_mode must be 'fixed', 'random_per_request', or 'sequential'"
+    )
+
+
+def _payload_metadata(
+    *,
+    count: int,
+    payload_source: str,
+    payload_mode: str,
+    mnist_data_dir: str,
+) -> dict[str, Any]:
+    if not payload_source.startswith("mnist_"):
+        return {
+            "dataset_size": None,
+            "unique_payloads": 1 if payload_mode == "fixed" and count else count,
+        }
+    dataset_len = _mnist_len(mnist_data_dir, train=payload_source == "mnist_train")
+    if payload_mode == "fixed":
+        unique = 1 if count else 0
+    elif payload_mode == "sequential":
+        unique = min(count, dataset_len)
+    else:
+        unique = None
+    return {
+        "dataset_size": dataset_len,
+        "unique_payloads": unique,
+    }
 
 
 def _make_random_image_b64() -> str:
@@ -364,17 +413,17 @@ def main() -> None:
     parser.add_argument("--model_version", default=None)
     parser.add_argument("--candidate_version", default=None)
     parser.add_argument("--shadow_version", default=None)
-    parser.add_argument("--requests", type=int, default=1000)
-    parser.add_argument("--concurrency", type=int, default=50)
+    parser.add_argument("--requests", type=int, default=10000)
+    parser.add_argument("--concurrency", type=int, default=100)
     parser.add_argument("--warmup_requests", type=int, default=20)
-    parser.add_argument("--payload_source", default="random")
+    parser.add_argument("--payload_source", default="mnist_test")
     parser.add_argument("--mnist_data_dir", default="./data")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--payload_mode",
-        choices=["fixed", "random_per_request"],
-        default="fixed",
-        help="Use one fixed payload or generate varied random payloads.",
+        choices=["fixed", "random_per_request", "sequential"],
+        default="sequential",
+        help="Use one fixed payload, random varied payloads, or sequential MNIST samples.",
     )
     parser.add_argument("--output", default="benchmark_results.json")
     args = parser.parse_args()

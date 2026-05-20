@@ -212,13 +212,14 @@
       <div class="tbl-wrap">
         <div class="tbl-title">Model Comparison</div>
         <table>
-          <thead><tr><th>Role</th><th>Version</th><th>Architecture</th><th>Accuracy</th><th>P95 (ms)</th><th>QPS</th></tr></thead>
+          <thead><tr><th>Role</th><th>Version</th><th>Architecture</th><th>Eval Samples</th><th>Accuracy</th><th>P95 (ms)</th><th>QPS</th></tr></thead>
           <tbody>
             {% if prod_model %}
             <tr>
               <td><span class="badge badge-prod">prod</span></td>
               <td class="mono">{{ prod_model.model_version }}</td>
               <td>{{ prod_model.architecture }}</td>
+              <td class="mono">{{ prod_metrics.n_samples | default('-') }}</td>
               <td class="mono">{{ prod_metrics.accuracy | default('-') }}</td>
               <td class="mono">{{ prod_metrics.p95_ms | default('-') }}</td>
               <td class="mono">{{ prod_metrics.throughput_qps | default('-') }}</td>
@@ -229,6 +230,7 @@
               <td><span class="badge badge-staging">candidate</span></td>
               <td class="mono">{{ staging_model.model_version }}</td>
               <td>{{ staging_model.architecture }}</td>
+              <td class="mono">{{ staging_metrics.n_samples | default('-') }}</td>
               <td class="mono">{{ staging_metrics.accuracy | default('-') }}</td>
               <td class="mono">{{ staging_metrics.p95_ms | default('-') }}</td>
               <td class="mono">{{ staging_metrics.throughput_qps | default('-') }}</td>
@@ -265,7 +267,7 @@
       <div class="tbl-wrap">
         <table>
           <thead>
-            <tr><th>Model</th><th>Version</th><th>Architecture</th><th>Status</th><th>Accuracy</th><th>P95 (ms)</th><th>Created</th><th>Actions</th></tr>
+            <tr><th>Model</th><th>Version</th><th>Architecture</th><th>Status</th><th>Eval Samples</th><th>Accuracy</th><th>P95 (ms)</th><th>Created</th><th>Actions</th></tr>
           </thead>
           <tbody>
             {% for m in models %}
@@ -274,6 +276,7 @@
               <td class="mono">{{ m.model_version }}</td>
               <td><span class="badge" style="background:var(--blue-bg);color:var(--blue)">{{ m.architecture }}</span></td>
               <td><span class="badge badge-{{ m.status }}">{{ m.status }}</span></td>
+              <td class="mono">{{ m.metrics_parsed.n_samples | default('-') }}</td>
               <td class="mono">{{ m.metrics_parsed.accuracy | default('-') }}</td>
               <td class="mono">{{ m.metrics_parsed.p95_ms | default('-') }}</td>
               <td style="color:var(--text2)">{{ m.created_at.strftime('%Y-%m-%d %H:%M') if m.created_at else '-' }}</td>

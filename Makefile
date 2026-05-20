@@ -29,16 +29,16 @@ run-batch:
 	@echo "Submitting batch job via API..."
 	curl -s -X POST http://localhost:8000/batch/submit \
 		-H "Content-Type: application/json" \
-		-d '{"model_name":"mnist_cnn","dataset_id":"mnist_1000"}' | python -m json.tool
+		-d '{"model_name":"mnist_cnn","dataset_id":"mnist_10000"}' | python -m json.tool
 
 run-loadtest:
 	python scripts/loadtest.py --url http://localhost:8000 --concurrency 10 --total 100
 
 benchmark:
-	python scripts/benchmark_inference.py --url http://localhost:8000 --requests 1000 --concurrency 50 --model_version v1.0.0 --candidate_version v2.0.0
+	python scripts/benchmark_inference.py --url http://localhost:8000 --requests 10000 --concurrency 100 --model_version v1.0.0 --candidate_version v2.0.0 --payload_source mnist_test --payload_mode sequential
 
 shadow:
-	python scripts/benchmark_inference.py --url http://localhost:8000 --requests 100 --concurrency 10 --shadow_version v2.0.0 --payload_source mnist_test --payload_mode random_per_request --output shadow_benchmark_results.json
+	python scripts/benchmark_inference.py --url http://localhost:8000 --requests 10000 --concurrency 50 --shadow_version v2.0.0 --payload_source mnist_test --payload_mode sequential --output shadow_benchmark_results.json
 
 gate-demo:
 	python -m platform_cli gate \
@@ -75,7 +75,7 @@ docker-batch:
 	docker compose -f ops/docker-compose.yml exec api \
 		curl -s -X POST http://localhost:8000/batch/submit \
 			-H "Content-Type: application/json" \
-			-d '{"model_name":"mnist_cnn","dataset_id":"mnist_1000"}' | python -m json.tool
+			-d '{"model_name":"mnist_cnn","dataset_id":"mnist_10000"}' | python -m json.tool
 
 clean:
 	rm -rf artifacts/ reports/ data/ __pycache__ .pytest_cache *.db platform.db

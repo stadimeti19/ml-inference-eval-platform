@@ -23,7 +23,7 @@ router = APIRouter(prefix="/batch")
 class BatchSubmitRequest(BaseModel):
     model_name: str
     model_version: Optional[str] = None
-    dataset_id: str = "mnist_1000"
+    dataset_id: str = "mnist_10000"
     config: Optional[dict[str, Any]] = None
 
 

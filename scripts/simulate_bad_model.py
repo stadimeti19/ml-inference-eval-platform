@@ -39,7 +39,7 @@ def main() -> None:
             "p95_ms": 0.06,
             "p99_ms": 0.07,
             "throughput_qps": 18000.0,
-            "n_samples": 1000,
+            "n_samples": 10000,
         }
     finally:
         session.close()

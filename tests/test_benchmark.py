@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from scripts.benchmark_inference import (
     _build_payloads,
+    _payload_metadata,
     compare_reports,
     summarize_latencies,
 )
@@ -87,3 +88,15 @@ def test_fixed_payload_reuses_same_payload():
 
     assert len(payloads) == 3
     assert len({p["image_b64"] for p in payloads}) == 1
+
+
+def test_payload_metadata_for_non_dataset_sources():
+    meta = _payload_metadata(
+        count=10000,
+        payload_source="random",
+        payload_mode="random_per_request",
+        mnist_data_dir="./data",
+    )
+
+    assert meta["dataset_size"] is None
+    assert meta["unique_payloads"] == 10000

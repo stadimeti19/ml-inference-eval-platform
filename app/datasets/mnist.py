@@ -37,7 +37,7 @@ def get_mnist_loader(
 
 
 def get_mnist_subset(
-    n: int = 1000,
+    n: int = 10000,
     train: bool = False,
     download_dir: str = "./data",
 ) -> tuple[torch.Tensor, torch.Tensor]:

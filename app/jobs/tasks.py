@@ -19,11 +19,11 @@ logger = get_logger(__name__)
 
 
 def _parse_dataset_id(dataset_id: str) -> int:
-    """Extract sample count from dataset_id like 'mnist_1000'."""
+    """Extract sample count from dataset_id like 'mnist_10000'."""
     parts = dataset_id.split("_")
     if len(parts) == 2 and parts[1].isdigit():
         return int(parts[1])
-    return 1000
+    return 10000
 
 
 def run_batch_inference(job_id: str) -> None:
