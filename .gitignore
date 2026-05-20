@@ -1,6 +1,9 @@
 # Artifacts & reports
 artifacts/
 reports/
+benchmark_results*.json
+shadow_benchmark_results*.json
+*_benchmark_results.json
 
 # Python
 __pycache__/
