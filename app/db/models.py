@@ -87,6 +87,31 @@ class GateResult(Base):
         return f"<GateResult {self.model_name} {status}>"
 
 
+class DeploymentEvent(Base):
+    """Immutable audit record for model lifecycle and gate decisions."""
+
+    __tablename__ = "deployment_events"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    version: Mapped[str] = mapped_column(String(64), nullable=False)
+    previous_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    new_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<DeploymentEvent {self.event_type} "
+            f"{self.model_name}@{self.version}>"
+        )
+
+
 class ShadowResult(Base):
     """Per-request log of shadow (canary) inference alongside production."""
 

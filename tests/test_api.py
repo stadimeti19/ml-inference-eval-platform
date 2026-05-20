@@ -91,3 +91,26 @@ def test_predict_missing_model(client):
         json={"model_name": "nonexistent", "image_b64": "aGVsbG8="},
     )
     assert resp.status_code == 404
+
+
+def test_json_observability_endpoints(client):
+    client.post(
+        "/predict",
+        json={"model_name": "mnist_cnn", "image_b64": _make_image_b64()},
+    )
+
+    cache = client.get("/metrics/cache")
+    assert cache.status_code == 200
+    assert "cache_hit_rate" in cache.json()
+
+    inference = client.get("/metrics/inference")
+    assert inference.status_code == 200
+    assert inference.json()["total_requests"] >= 1
+
+    batch = client.get("/metrics/batch")
+    assert batch.status_code == 200
+    assert "total_jobs" in batch.json()
+
+    platform = client.get("/metrics/platform")
+    assert platform.status_code == 200
+    assert platform.json()["current_prod_model"]["model_version"] == "v1.0.0"

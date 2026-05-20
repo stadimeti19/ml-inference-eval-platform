@@ -65,13 +65,16 @@ def promote(model_name: str, model_version: str) -> None:
 @click.option("--model_name", required=True)
 def rollback(model_name: str) -> None:
     """Rollback to the previous production version."""
-    from app.registry.manager import rollback as rb
+    from app.registry.manager import rollback_with_summary
 
-    mv = rb(model_name=model_name)
-    if mv is None:
-        click.echo("ERROR: no version to rollback to", err=True)
+    summary = rollback_with_summary(model_name=model_name)
+    if not summary.rolled_back:
+        click.echo(f"Rollback skipped: {summary.reason}", err=True)
         sys.exit(1)
-    click.echo(f"Rolled back {mv.model_name} -> now prod: {mv.model_version}")
+    click.echo(
+        f"Rolled back {summary.model_name}: "
+        f"{summary.previous_prod_version} -> {summary.new_prod_version}"
+    )
 
 
 @cli.command("list")
@@ -112,6 +115,10 @@ def gate(model_name: str, candidate_version: str, baseline_version: str) -> None
     status = "PASS" if result.passed else "FAIL"
     details = json.loads(result.details) if result.details else {}
     click.echo(f"Gate result: {status}")
+    if details.get("decision_summary"):
+        click.echo(details["decision_summary"])
+    if details.get("recommendation"):
+        click.echo(f"Recommendation: {details['recommendation']}")
     click.echo(json.dumps(details, indent=2))
     if not result.passed:
         sys.exit(1)

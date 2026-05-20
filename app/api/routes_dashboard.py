@@ -10,10 +10,12 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from sqlalchemy import func
 
 from app.db import repositories as repo
-from app.db.models import GateResult, ShadowResult, SloPolicy
+from app.db.models import BatchJob, GateResult, ShadowResult, SloPolicy
 from app.db.session import get_session
+from app.inference.cache import get_cache_stats
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -37,9 +39,15 @@ def dashboard(request: Request) -> HTMLResponse:
 
         # Prod model metrics
         prod_models = [m for m in models if m.status == "prod"]
+        staging_models = [m for m in models if m.status == "staging"]
+        prod_model = prod_models[0] if prod_models else None
+        staging_model = staging_models[0] if staging_models else None
         prod_metrics: dict[str, Any] = {}
-        if prod_models and prod_models[0].metrics:
-            prod_metrics = json.loads(prod_models[0].metrics)
+        if prod_model and prod_model.metrics:
+            prod_metrics = json.loads(prod_model.metrics)
+        staging_metrics: dict[str, Any] = {}
+        if staging_model and staging_model.metrics:
+            staging_metrics = json.loads(staging_model.metrics)
 
         # Gate results
         gate_results = list(
@@ -53,6 +61,17 @@ def dashboard(request: Request) -> HTMLResponse:
 
         # SLO policies
         slo_policies = list(session.query(SloPolicy).all())
+
+        # Deployment events and batch status
+        deployment_events = repo.list_deployment_events(session, limit=25)
+        batch_rows = (
+            session.query(BatchJob.status, func.count(BatchJob.id))
+            .group_by(BatchJob.status)
+            .all()
+        )
+        batch_status = {status: int(count) for status, count in batch_rows}
+        batch_total = sum(batch_status.values())
+        cache_stats = get_cache_stats()
 
         # Shadow data
         shadow_pairs = _get_shadow_pairs(session)
@@ -78,9 +97,16 @@ def dashboard(request: Request) -> HTMLResponse:
             "dashboard.html",
             {
                 "models": models,
+                "prod_model": prod_model,
+                "staging_model": staging_model,
                 "prod_metrics": prod_metrics,
+                "staging_metrics": staging_metrics,
                 "gate_results": gate_results,
+                "deployment_events": deployment_events,
                 "slo_policies": slo_policies,
+                "batch_status": batch_status,
+                "batch_total": batch_total,
+                "cache_stats": cache_stats,
                 "shadow_pairs": shadow_pairs,
                 "shadow_total": shadow_total,
                 "shadow_agg_rate": shadow_agg_rate,
@@ -147,35 +173,29 @@ class RollbackRequest(BaseModel):
 
 @router.post("/api/promote")
 def api_promote(req: PromoteRequest) -> dict:
-    session = get_session()
-    try:
-        mv = repo.promote_model(
-            session, model_name=req.model_name, model_version=req.model_version
-        )
-        if mv is None:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Model not found")
-        return {
-            "model_name": mv.model_name,
-            "model_version": mv.model_version,
-            "status": mv.status,
-        }
-    finally:
-        session.close()
+    from app.registry.manager import promote
+
+    mv = promote(model_name=req.model_name, model_version=req.model_version)
+    if mv is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Model not found")
+    return {
+        "model_name": mv.model_name,
+        "model_version": mv.model_version,
+        "status": mv.status,
+    }
 
 
 @router.post("/api/rollback")
 def api_rollback(req: RollbackRequest) -> dict:
-    session = get_session()
-    try:
-        mv = repo.rollback_model(session, model_name=req.model_name)
-        if mv is None:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="No version to rollback to")
-        return {
-            "model_name": mv.model_name,
-            "model_version": mv.model_version,
-            "status": mv.status,
-        }
-    finally:
-        session.close()
+    from app.registry.manager import rollback_with_summary
+
+    summary = rollback_with_summary(model_name=req.model_name)
+    return {
+        "model_name": summary.model_name,
+        "model_version": summary.new_prod_version,
+        "previous_prod_version": summary.previous_prod_version,
+        "rolled_back": summary.rolled_back,
+        "reason": summary.reason,
+        "status": "prod" if summary.rolled_back else "unchanged",
+    }

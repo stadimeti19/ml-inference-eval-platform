@@ -62,3 +62,26 @@ def test_gate_fail_latency(db_session):
     p95_check = details["checks"][1]
     assert p95_check["check"] == "p95_latency_increase"
     assert p95_check["passed"] is False
+
+
+def test_gate_report_contains_deployment_decision_fields(db_session):
+    _register_with_metrics(db_session, "v1", accuracy=0.981, p95_ms=0.062)
+    _register_with_metrics(db_session, "v2", accuracy=0.989, p95_ms=0.163)
+
+    with patch("app.eval.gates.get_session", return_value=db_session):
+        from app.eval.gates import run_regression_gate
+        result = run_regression_gate("m", "v2", "v1")
+
+    details = json.loads(result.details)
+    assert details["baseline_accuracy"] == 0.981
+    assert details["candidate_accuracy"] == 0.989
+    assert details["accuracy_delta"] == 0.008
+    assert details["baseline_p95_ms"] == 0.062
+    assert details["candidate_p95_ms"] == 0.163
+    assert details["p95_delta_percent"] > 100
+    assert "threshold_used" in details
+    assert "recommendation" in details
+    assert details["decision_summary"].startswith("Rejected v2")
+
+    events = repo.list_deployment_events(db_session, model_name="m")
+    assert events[0].event_type == "gate_fail"

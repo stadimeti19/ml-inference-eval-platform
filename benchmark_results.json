@@ -1,0 +1,28 @@
+{
+  "model_name": "mnist_cnn",
+  "model_version": "v1.0.0",
+  "shadow_version": null,
+  "url": "http://localhost:8000",
+  "concurrency": 50,
+  "warmup_requests": 20,
+  "payload_source": "random",
+  "payload_mode": "fixed",
+  "summary": {
+    "requests": 1000,
+    "successful_requests": 1000,
+    "errors": 0,
+    "error_rate": 0.0,
+    "wall_time_s": 2.215,
+    "throughput_qps": 451.38,
+    "avg_latency_ms": 108.435,
+    "p50_latency_ms": 99.61,
+    "p95_latency_ms": 206.046,
+    "p99_latency_ms": 235.718,
+    "cache_hit_rate": 1.0,
+    "cache_hits": 1000,
+    "cache_misses": 0,
+    "model_load_count": 0,
+    "avg_model_load_time_ms": 7.048
+  },
+  "timestamp": "2026-05-20T18:18:17.696533+00:00"
+}

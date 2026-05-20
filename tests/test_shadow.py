@@ -142,6 +142,52 @@ def test_shadow_results_after_traffic(shadow_client):
     assert 0.0 <= body["disagreement_rate"] <= 1.0
     assert body["avg_prod_latency_ms"] >= 0
     assert body["avg_shadow_latency_ms"] >= 0
+    assert "avg_latency_delta_ms" in body
+    assert "p95_latency_delta_ms" in body
+    assert "candidate_latency_summary" in body
+    assert "disagreement_examples" in body
+
+
+def test_shadow_summary_endpoint(shadow_client):
+    """Aggregate endpoint returns all observed prod/shadow pairs."""
+    shadow_client.post(
+        "/predict",
+        json={
+            "model_name": "mnist_cnn",
+            "image_b64": _make_image_b64(),
+            "shadow_version": "v2.0.0",
+        },
+    )
+
+    resp = shadow_client.get("/shadow/summary")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_comparisons"] == 1
+    assert 0.0 <= body["overall_disagreement_rate"] <= 1.0
+    assert len(body["pairs"]) == 1
+
+
+def test_clear_shadow_results_endpoint(shadow_client):
+    """Shadow rows can be cleared before a fresh canary run."""
+    shadow_client.post(
+        "/predict",
+        json={
+            "model_name": "mnist_cnn",
+            "image_b64": _make_image_b64(),
+            "shadow_version": "v2.0.0",
+        },
+    )
+
+    resp = shadow_client.delete(
+        "/shadow/results",
+        params={"model_name": "mnist_cnn", "shadow_version": "v2.0.0"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["deleted"] == 1
+
+    summary = shadow_client.get("/shadow/summary")
+    assert summary.status_code == 200
+    assert summary.json()["total_comparisons"] == 0
 
 
 def test_shadow_db_records(shadow_client):

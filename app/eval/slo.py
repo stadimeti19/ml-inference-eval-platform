@@ -43,6 +43,37 @@ _CONSTRAINT_TO_METRIC: dict[str, str] = {
 }
 
 
+def _save_slo_result_with_event(
+    session,
+    *,
+    model_name: str,
+    model_version: str,
+    policy_name: str,
+    passed: bool,
+    details: dict[str, Any],
+) -> GateResult:
+    result = repo.save_gate_result(
+        session,
+        model_name=model_name,
+        candidate_version=model_version,
+        baseline_version=f"SLO:{policy_name}",
+        passed=passed,
+        details=details,
+    )
+    mv = repo.get_model(session, model_name=model_name, model_version=model_version)
+    status = mv.status if mv else None
+    repo.create_deployment_event(
+        session,
+        model_name=model_name,
+        version=model_version,
+        previous_status=status,
+        new_status=status,
+        event_type="gate_pass" if passed else "gate_fail",
+        reason=details.get("recommendation") or details.get("error"),
+    )
+    return result
+
+
 def _metric_key(constraint_name: str) -> str:
     """Derive the metric key from a constraint name.
 
@@ -127,11 +158,11 @@ def run_slo_gate(
         policy = repo.get_slo_policy(session, name=policy_name)
         if policy is None:
             detail = {"error": f"SLO policy '{policy_name}' not found"}
-            return repo.save_gate_result(
+            return _save_slo_result_with_event(
                 session,
                 model_name=model_name,
-                candidate_version=model_version,
-                baseline_version=f"SLO:{policy_name}",
+                model_version=model_version,
+                policy_name=policy_name,
                 passed=False,
                 details=detail,
             )
@@ -141,11 +172,11 @@ def run_slo_gate(
         )
         if mv is None:
             detail = {"error": f"Model {model_name}@{model_version} not found"}
-            return repo.save_gate_result(
+            return _save_slo_result_with_event(
                 session,
                 model_name=model_name,
-                candidate_version=model_version,
-                baseline_version=f"SLO:{policy_name}",
+                model_version=model_version,
+                policy_name=policy_name,
                 passed=False,
                 details=detail,
             )
@@ -155,11 +186,11 @@ def run_slo_gate(
             detail = {
                 "error": "Model has no evaluation metrics. Run batch inference first."
             }
-            return repo.save_gate_result(
+            return _save_slo_result_with_event(
                 session,
                 model_name=model_name,
-                candidate_version=model_version,
-                baseline_version=f"SLO:{policy_name}",
+                model_version=model_version,
+                policy_name=policy_name,
                 passed=False,
                 details=detail,
             )
@@ -167,15 +198,18 @@ def run_slo_gate(
         constraints = json.loads(policy.constraints)
         evaluation = evaluate_slo(constraints, model_metrics)
 
-        result = repo.save_gate_result(
+        result = _save_slo_result_with_event(
             session,
             model_name=model_name,
-            candidate_version=model_version,
-            baseline_version=f"SLO:{policy_name}",
+            model_version=model_version,
+            policy_name=policy_name,
             passed=evaluation["passed"],
             details={
                 "policy_name": policy_name,
                 "constraints": constraints,
+                "recommendation": "SLO policy satisfied; model is eligible for deployment."
+                if evaluation["passed"]
+                else "SLO policy failed; keep model out of production until constraints pass.",
                 **evaluation,
             },
         )

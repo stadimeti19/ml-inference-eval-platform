@@ -16,6 +16,10 @@ from app.core.metrics import (
     SHADOW_LATENCY,
     SHADOW_REQUEST_COUNT,
 )
+from app.core.runtime_metrics import (
+    record_inference_request,
+    record_prediction_error,
+)
 from app.db import repositories as repo
 from app.db.session import get_session
 from app.inference.cache import get_model_cached
@@ -78,6 +82,7 @@ def predict(req: PredictRequest) -> PredictResponse:
             REQUEST_COUNT.labels(
                 endpoint="/predict", model_name=req.model_name, status="404"
             ).inc()
+            record_prediction_error(req.model_name)
             raise HTTPException(
                 status_code=404,
                 detail=f"No model found for {req.model_name}"
@@ -98,6 +103,7 @@ def predict(req: PredictRequest) -> PredictResponse:
         REQUEST_COUNT.labels(
             endpoint="/predict", model_name=req.model_name, status="200"
         ).inc()
+        record_inference_request(req.model_name, total_ms)
 
         # --- Shadow inference (fire-and-forget, never affects prod response) ---
         shadow_detail: ShadowDetail | None = None
@@ -118,6 +124,14 @@ def predict(req: PredictRequest) -> PredictResponse:
             model_version=mv.model_version,
             shadow=shadow_detail,
         )
+    except HTTPException:
+        raise
+    except Exception:
+        record_prediction_error(req.model_name)
+        REQUEST_COUNT.labels(
+            endpoint="/predict", model_name=req.model_name, status="500"
+        ).inc()
+        raise
     finally:
         session.close()
 
@@ -216,6 +230,46 @@ def shadow_results(
             shadow_version=shadow_version,
             prod_version=prod_version,
         )
+    finally:
+        session.close()
+
+
+@router.delete("/shadow/results")
+def clear_shadow_results(
+    model_name: Optional[str] = Query(None, description="Filter by model name"),
+    shadow_version: Optional[str] = Query(None, description="Filter by shadow version"),
+    prod_version: Optional[str] = Query(None, description="Filter by prod version"),
+) -> dict:
+    """Clear shadow comparison rows, optionally scoped by model/version."""
+    session = get_session()
+    try:
+        deleted = repo.delete_shadow_results(
+            session,
+            model_name=model_name,
+            shadow_version=shadow_version,
+            prod_version=prod_version,
+        )
+        return {"deleted": deleted}
+    finally:
+        session.close()
+
+
+@router.get("/shadow/summary")
+def shadow_summary() -> dict:
+    """Return aggregate summaries for all shadow comparison pairs."""
+    session = get_session()
+    try:
+        summaries = repo.list_shadow_summaries(session)
+        total = sum(s.get("total_comparisons", 0) for s in summaries)
+        disagreements = sum(s.get("disagreements", 0) for s in summaries)
+        return {
+            "total_comparisons": total,
+            "total_disagreements": disagreements,
+            "overall_disagreement_rate": round(disagreements / total, 4)
+            if total
+            else 0.0,
+            "pairs": summaries,
+        }
     finally:
         session.close()
 

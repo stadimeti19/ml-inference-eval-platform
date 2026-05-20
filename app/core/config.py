@@ -23,6 +23,16 @@ class Settings:
     queue_name: str = field(
         default_factory=lambda: os.getenv("QUEUE_NAME", "default")
     )
+    torch_num_threads: int = field(
+        default_factory=lambda: int(os.getenv("TORCH_NUM_THREADS", "1"))
+    )
+    torch_interop_threads: int = field(
+        default_factory=lambda: int(os.getenv("TORCH_INTEROP_THREADS", "1"))
+    )
+    preload_prod_models: bool = field(
+        default_factory=lambda: os.getenv("PRELOAD_PROD_MODELS", "true").lower()
+        in {"1", "true", "yes", "on"}
+    )
     app_version: str = "0.1.0"
 
 

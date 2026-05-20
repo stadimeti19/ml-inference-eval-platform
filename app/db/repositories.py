@@ -8,7 +8,14 @@ from typing import Any
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from app.db.models import BatchJob, GateResult, ModelVersion, ShadowResult, SloPolicy
+from app.db.models import (
+    BatchJob,
+    DeploymentEvent,
+    GateResult,
+    ModelVersion,
+    ShadowResult,
+    SloPolicy,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +122,69 @@ def list_models(
     if model_name:
         q = q.filter_by(model_name=model_name)
     return list(q.all())
+
+
+# ---------------------------------------------------------------------------
+# Deployment Events
+# ---------------------------------------------------------------------------
+
+def create_deployment_event(
+    session: Session,
+    *,
+    model_name: str,
+    version: str,
+    previous_status: str | None,
+    new_status: str | None,
+    event_type: str,
+    reason: str | None = None,
+) -> DeploymentEvent:
+    """Append an audit event for a model lifecycle or gate action."""
+    event = DeploymentEvent(
+        model_name=model_name,
+        version=version,
+        previous_status=previous_status,
+        new_status=new_status,
+        event_type=event_type,
+        reason=reason,
+    )
+    session.add(event)
+    session.commit()
+    session.refresh(event)
+    return event
+
+
+def list_deployment_events(
+    session: Session,
+    *,
+    model_name: str | None = None,
+    limit: int = 100,
+) -> list[DeploymentEvent]:
+    q = session.query(DeploymentEvent).order_by(desc(DeploymentEvent.created_at))
+    if model_name:
+        q = q.filter_by(model_name=model_name)
+    return list(q.limit(limit).all())
+
+
+def get_previous_prod_version_from_events(
+    session: Session,
+    *,
+    model_name: str,
+    current_version: str | None = None,
+) -> str | None:
+    """Return the latest earlier version that was promoted to prod."""
+    q = (
+        session.query(DeploymentEvent)
+        .filter(
+            DeploymentEvent.model_name == model_name,
+            DeploymentEvent.new_status == "prod",
+            DeploymentEvent.event_type.in_(["promote", "rollback"]),
+        )
+        .order_by(desc(DeploymentEvent.created_at))
+    )
+    for event in q.all():
+        if current_version is None or event.version != current_version:
+            return event.version
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -231,27 +301,31 @@ def get_shadow_summary(
 ) -> dict[str, Any]:
     """Aggregate shadow results into a summary report.
 
-    Returns agreement rate, latency comparison, and sample count.
+    Returns agreement rate, latency comparison, sample count, and examples
+    of prod/candidate disagreement.
     """
-    from sqlalchemy import func as sa_func
-
     q = session.query(ShadowResult).filter_by(
         model_name=model_name, shadow_version=shadow_version
     )
     if prod_version:
         q = q.filter_by(prod_version=prod_version)
 
-    total = q.count()
+    rows = q.order_by(desc(ShadowResult.created_at)).all()
+    total = len(rows)
     if total == 0:
         return {"total_comparisons": 0}
 
-    agreed = q.filter_by(agreed=True).count()
-
-    stats = q.with_entities(
-        sa_func.avg(ShadowResult.prod_latency_ms).label("avg_prod_ms"),
-        sa_func.avg(ShadowResult.shadow_latency_ms).label("avg_shadow_ms"),
-        sa_func.max(ShadowResult.shadow_latency_ms).label("max_shadow_ms"),
-    ).one()
+    agreed = sum(1 for r in rows if r.agreed)
+    prod_latencies = [float(r.prod_latency_ms) for r in rows]
+    shadow_latencies = [float(r.shadow_latency_ms) for r in rows]
+    latency_deltas = [s - p for p, s in zip(prod_latencies, shadow_latencies)]
+    avg_prod_ms = sum(prod_latencies) / total
+    avg_shadow_ms = sum(shadow_latencies) / total
+    avg_delta_ms = sum(latency_deltas) / total
+    p95_delta_ms = _percentile(latency_deltas, 95)
+    disagreements = [r for r in rows if not r.agreed][:10]
+    faster_count = sum(1 for d in latency_deltas if d < 0)
+    slower_count = sum(1 for d in latency_deltas if d > 0)
 
     return {
         "model_name": model_name,
@@ -262,10 +336,93 @@ def get_shadow_summary(
         "disagreements": total - agreed,
         "agreement_rate": round(agreed / total, 4),
         "disagreement_rate": round((total - agreed) / total, 4),
-        "avg_prod_latency_ms": round(float(stats.avg_prod_ms), 3),
-        "avg_shadow_latency_ms": round(float(stats.avg_shadow_ms), 3),
-        "max_shadow_latency_ms": round(float(stats.max_shadow_ms), 3),
+        "avg_prod_latency_ms": round(avg_prod_ms, 3),
+        "avg_shadow_latency_ms": round(avg_shadow_ms, 3),
+        "avg_latency_delta_ms": round(avg_delta_ms, 3),
+        "p95_latency_delta_ms": round(p95_delta_ms, 3),
+        "max_shadow_latency_ms": round(max(shadow_latencies), 3),
+        "candidate_latency_summary": {
+            "faster_count": faster_count,
+            "slower_count": slower_count,
+            "same_count": total - faster_count - slower_count,
+            "summary": "candidate_faster"
+            if faster_count > slower_count
+            else "candidate_slower"
+            if slower_count > faster_count
+            else "mixed",
+        },
+        "disagreement_examples": [
+            {
+                "id": r.id,
+                "prod_version": r.prod_version,
+                "shadow_version": r.shadow_version,
+                "prod_prediction": r.prod_prediction,
+                "shadow_prediction": r.shadow_prediction,
+                "prod_latency_ms": round(float(r.prod_latency_ms), 3),
+                "shadow_latency_ms": round(float(r.shadow_latency_ms), 3),
+                "created_at": str(r.created_at),
+            }
+            for r in disagreements
+        ],
     }
+
+
+def list_shadow_summaries(session: Session) -> list[dict[str, Any]]:
+    """Return summaries for every observed prod/shadow pair."""
+    pairs = (
+        session.query(
+            ShadowResult.model_name,
+            ShadowResult.prod_version,
+            ShadowResult.shadow_version,
+        )
+        .group_by(
+            ShadowResult.model_name,
+            ShadowResult.prod_version,
+            ShadowResult.shadow_version,
+        )
+        .all()
+    )
+    return [
+        get_shadow_summary(
+            session,
+            model_name=p.model_name,
+            prod_version=p.prod_version,
+            shadow_version=p.shadow_version,
+        )
+        for p in pairs
+    ]
+
+
+def delete_shadow_results(
+    session: Session,
+    *,
+    model_name: str | None = None,
+    shadow_version: str | None = None,
+    prod_version: str | None = None,
+) -> int:
+    """Delete shadow comparison rows matching optional filters."""
+    q = session.query(ShadowResult)
+    if model_name:
+        q = q.filter_by(model_name=model_name)
+    if shadow_version:
+        q = q.filter_by(shadow_version=shadow_version)
+    if prod_version:
+        q = q.filter_by(prod_version=prod_version)
+    count = q.count()
+    q.delete(synchronize_session=False)
+    session.commit()
+    return int(count)
+
+
+def _percentile(values: list[float], percentile: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    k = (len(ordered) - 1) * (percentile / 100.0)
+    lower = int(k)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = k - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
 
 
 # ---------------------------------------------------------------------------
