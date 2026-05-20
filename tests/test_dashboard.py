@@ -47,6 +47,8 @@ def test_dashboard_loads(dash_client):
     assert "ML Platform" in resp.text
     assert "mnist_cnn" in resp.text
     assert "v1.0.0" in resp.text
+    assert "LLM Providers" in resp.text
+    assert "openai:gpt-4o-mini" in resp.text
 
 
 def test_dashboard_promote(dash_client):

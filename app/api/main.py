@@ -13,6 +13,7 @@ from app.api.routes_batch import router as batch_router
 from app.api.routes_dashboard import router as dashboard_router
 from app.api.routes_health import router as health_router
 from app.api.routes_inference import router as inference_router
+from app.api.routes_llm import router as llm_router
 from app.api.routes_observability import router as observability_router
 from app.api.routes_slo import router as slo_router
 from app.core.config import get_settings
@@ -92,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(inference_router)
     app.include_router(batch_router)
     app.include_router(slo_router)
+    app.include_router(llm_router)
     app.include_router(observability_router)
     app.include_router(dashboard_router)
 

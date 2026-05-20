@@ -16,6 +16,7 @@ from app.db import repositories as repo
 from app.db.models import BatchJob, GateResult, ShadowResult, SloPolicy
 from app.db.session import get_session
 from app.inference.cache import get_cache_stats
+from app.llm.providers import get_llm_models, provider_status
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -72,6 +73,8 @@ def dashboard(request: Request) -> HTMLResponse:
         batch_status = {status: int(count) for status, count in batch_rows}
         batch_total = sum(batch_status.values())
         cache_stats = get_cache_stats()
+        llm_models = get_llm_models()
+        llm_provider_status = provider_status()
 
         # Shadow data
         shadow_pairs = _get_shadow_pairs(session)
@@ -107,6 +110,8 @@ def dashboard(request: Request) -> HTMLResponse:
                 "batch_status": batch_status,
                 "batch_total": batch_total,
                 "cache_stats": cache_stats,
+                "llm_models": llm_models,
+                "llm_provider_status": llm_provider_status,
                 "shadow_pairs": shadow_pairs,
                 "shadow_total": shadow_total,
                 "shadow_agg_rate": shadow_agg_rate,

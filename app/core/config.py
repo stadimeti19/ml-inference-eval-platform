@@ -33,6 +33,19 @@ class Settings:
         default_factory=lambda: os.getenv("PRELOAD_PROD_MODELS", "true").lower()
         in {"1", "true", "yes", "on"}
     )
+    llm_enable_live_providers: bool = field(
+        default_factory=lambda: os.getenv("LLM_ENABLE_LIVE_PROVIDERS", "false").lower()
+        in {"1", "true", "yes", "on"}
+    )
+    openai_api_key: str | None = field(
+        default_factory=lambda: os.getenv("OPENAI_API_KEY")
+    )
+    gemini_api_key: str | None = field(
+        default_factory=lambda: os.getenv("GEMINI_API_KEY")
+    )
+    anthropic_api_key: str | None = field(
+        default_factory=lambda: os.getenv("ANTHROPIC_API_KEY")
+    )
     app_version: str = "0.1.0"
 
 

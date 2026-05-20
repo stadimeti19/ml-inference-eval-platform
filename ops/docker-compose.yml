@@ -43,6 +43,10 @@ services:
       MKL_NUM_THREADS: 1
       TORCH_NUM_THREADS: 1
       TORCH_INTEROP_THREADS: 1
+      LLM_ENABLE_LIVE_PROVIDERS: ${LLM_ENABLE_LIVE_PROVIDERS:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,6 +72,10 @@ services:
       MKL_NUM_THREADS: 1
       TORCH_NUM_THREADS: 1
       TORCH_INTEROP_THREADS: 1
+      LLM_ENABLE_LIVE_PROVIDERS: ${LLM_ENABLE_LIVE_PROVIDERS:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

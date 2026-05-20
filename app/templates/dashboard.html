@@ -133,7 +133,12 @@
     background: var(--surface); color: var(--text); font-size: 13px; font-family: var(--font);
     min-width: 160px;
   }
-  .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px #dbeafe; }
+  .form-group textarea {
+    padding: 10px 12px; border-radius: 7px; border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--text); font-size: 13px; font-family: var(--font);
+    min-width: 360px; min-height: 92px; resize: vertical;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px #dbeafe; }
 
   /* Toast */
   .toast {
@@ -167,6 +172,7 @@
     <h1>ML Platform <span>Inference & Eval</span></h1>
     <a class="nav-item active" onclick="switchTab('overview')">Overview</a>
     <a class="nav-item" onclick="switchTab('registry')">Model Registry</a>
+    <a class="nav-item" onclick="switchTab('llm')">LLM Providers</a>
     <a class="nav-item" onclick="switchTab('shadow')">Shadow Traffic</a>
     <a class="nav-item" onclick="switchTab('slo')">SLO Policies</a>
     <a class="nav-item" onclick="switchTab('gates')">Gate History</a>
@@ -256,6 +262,82 @@
         </table>
       </div>
       {% endif %}
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- LLM PROVIDERS -->
+    <!-- ============================================================ -->
+    <div id="tab-llm" class="tab">
+      <h2 style="margin-bottom:24px;">LLM Providers</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="card-label">Registered LLMs</div>
+          <div class="card-value">{{ llm_models | length }}</div>
+          <div class="card-sub">OpenAI, Gemini, Anthropic, local</div>
+        </div>
+        {% for p in llm_provider_status %}
+        <div class="card">
+          <div class="card-label">{{ p.provider }}</div>
+          <div class="card-value" style="font-size:20px;color:var({% if p.configured %}--green{% else %}--text2{% endif %})">{{ p.mode }}</div>
+          <div class="card-sub">{{ 'API key configured' if p.configured else 'mock mode until key is set' }}</div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="tbl-wrap">
+        <div class="tbl-title">Provider Model Catalog</div>
+        <table>
+          <thead><tr><th>Model ID</th><th>Provider</th><th>Family</th><th>Context</th><th>Input $/1K</th><th>Output $/1K</th><th>Capabilities</th></tr></thead>
+          <tbody>
+          {% for m in llm_models %}
+            <tr>
+              <td class="mono">{{ m.id }}</td>
+              <td><span class="badge" style="background:var(--blue-bg);color:var(--blue)">{{ m.provider }}</span></td>
+              <td>{{ m.family }}</td>
+              <td class="mono">{{ m.context_window }}</td>
+              <td class="mono">{{ m.input_cost_per_1k }}</td>
+              <td class="mono">{{ m.output_cost_per_1k }}</td>
+              <td>
+                {% if m.supports_json %}<span class="badge badge-pass" style="margin-right:4px">json</span>{% endif %}
+                {% if m.supports_tools %}<span class="badge badge-staging" style="margin-right:4px">tools</span>{% endif %}
+                {% if m.supports_vision %}<span class="badge" style="background:var(--blue-bg);color:var(--blue)">vision</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="tbl-wrap">
+        <div class="tbl-title">Compare Provider Models</div>
+        <div style="padding:16px 18px;">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Models</label>
+              <input id="llm-models" style="min-width:420px" value="openai:gpt-4o-mini,gemini:gemini-2.0-flash,anthropic:claude-3-5-haiku-latest">
+            </div>
+            <div class="form-group">
+              <label>Task</label>
+              <input id="llm-task" value="support_triage">
+            </div>
+            <div class="form-group">
+              <label>JSON Mode</label>
+              <select id="llm-json">
+                <option value="false">false</option>
+                <option value="true">true</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Prompt</label>
+              <textarea id="llm-prompt">Classify this support request and suggest the next action: The customer says their payment failed twice and they need access restored today.</textarea>
+            </div>
+            <button class="btn btn-accent" onclick="compareLlm()">Compare</button>
+          </div>
+          <div id="llm-result"></div>
+        </div>
+      </div>
     </div>
 
     <!-- ============================================================ -->
@@ -506,6 +588,15 @@ function toast(msg, ok) {
   setTimeout(() => el.className = 'toast', 3000);
 }
 
+function esc(value) {
+  return String(value === null || value === undefined ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 async function promote(modelName, version) {
   if (!confirm('Promote ' + modelName + '@' + version + ' to production?')) return;
   try {
@@ -584,6 +675,60 @@ async function runSloCheck() {
       el.innerHTML = '<p style="color:var(--red);margin-top:12px">' + (d.detail || 'Check failed') + '</p>';
     }
   } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+async function compareLlm() {
+  const models = document.getElementById('llm-models').value
+    .split(',')
+    .map(v => v.trim())
+    .filter(Boolean);
+  const task = document.getElementById('llm-task').value || 'general';
+  const prompt = document.getElementById('llm-prompt').value;
+  const jsonMode = document.getElementById('llm-json').value === 'true';
+  const el = document.getElementById('llm-result');
+
+  if (!models.length || !prompt.trim()) {
+    toast('Models and prompt required', false);
+    return;
+  }
+
+  el.innerHTML = '<p style="color:var(--text2);font-size:13px;margin-top:12px">Comparing models...</p>';
+  try {
+    const r = await fetch('/llm/compare', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({models, prompt, task, json_mode: jsonMode})
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      el.innerHTML = '<p style="color:var(--red);margin-top:12px">' + esc(d.detail || 'Compare failed') + '</p>';
+      return;
+    }
+
+    let html = '<div class="tbl-wrap" style="margin-top:12px;margin-bottom:0">';
+    html += '<div class="tbl-title">Recommended: <span class="mono">' + esc(d.recommended_model || '-') + '</span></div>';
+    html += '<table><thead><tr><th>Model</th><th>Provider</th><th>Quality</th><th>Bias Risk</th><th>Latency</th><th>Cost</th><th>Mode</th></tr></thead><tbody>';
+    (d.results || []).forEach(row => {
+      const bias = Number(row.bias_risk_score || 0);
+      html += '<tr>';
+      html += '<td class="mono">' + esc(row.model_id) + '</td>';
+      html += '<td>' + esc(row.provider || '-') + '</td>';
+      html += '<td class="mono">' + Number(row.quality_score || 0).toFixed(3) + '</td>';
+      html += '<td><span class="badge ' + (bias <= 0.2 ? 'badge-pass' : 'badge-fail') + '">' + bias.toFixed(3) + '</span></td>';
+      html += '<td class="mono">' + Number(row.latency_ms || 0).toFixed(2) + ' ms</td>';
+      html += '<td class="mono">$' + Number(row.estimated_cost_usd || 0).toFixed(6) + '</td>';
+      html += '<td><span class="badge ' + (row.live ? 'badge-pass' : 'badge-staging') + '">' + (row.live ? 'live' : 'mock') + '</span></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    html += '<div style="padding:12px 14px;color:var(--text2);font-size:12px">' + esc(d.recommendation_reason || '') + '</div>';
+    html += '</div>';
+    el.innerHTML = html;
+    toast('LLM comparison complete', true);
+  } catch(e) {
+    el.innerHTML = '<p style="color:var(--red);margin-top:12px">Error: ' + esc(e.message) + '</p>';
+    toast('Error: ' + e.message, false);
+  }
 }
 
 /* Charts -- only render if shadow data exists */

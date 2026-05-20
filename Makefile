@@ -1,4 +1,4 @@
-.PHONY: setup up down test register-demo run-batch run-loadtest gate-demo train train-v2 pipeline migrate benchmark shadow rollback-demo bad-model-demo clean
+.PHONY: setup up down test register-demo run-batch run-loadtest gate-demo train train-v2 pipeline migrate benchmark shadow llm-compare rollback-demo bad-model-demo clean
 
 export PYTHONPATH := $(shell pwd)
 
@@ -39,6 +39,11 @@ benchmark:
 
 shadow:
 	python scripts/benchmark_inference.py --url http://localhost:8000 --requests 10000 --concurrency 50 --shadow_version v2.0.0 --payload_source mnist_test --payload_mode sequential --output shadow_benchmark_results.json
+
+llm-compare:
+	curl -s -X POST http://localhost:8000/llm/compare \
+		-H "Content-Type: application/json" \
+		-d '{"models":["openai:gpt-4o-mini","gemini:gemini-2.0-flash","anthropic:claude-3-5-haiku-latest"],"prompt":"Classify this support request and recommend the next action.","task":"support_triage","json_mode":true}' | python -m json.tool
 
 gate-demo:
 	python -m platform_cli gate \
