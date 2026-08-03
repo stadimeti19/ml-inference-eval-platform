@@ -18,7 +18,7 @@ from app.db import repositories as repo
 from app.db.session import get_session, init_db
 from app.eval.gates import run_regression_gate
 from app.eval.metrics import compute_eval_metrics
-from app.inference.cache import clear_cache, get_model_cached
+from app.inference.cache import get_model_cached
 from app.inference.model import train_mnist_model
 from app.inference.predict import predict_batch
 from app.registry.manager import list_models, promote, register
@@ -84,12 +84,16 @@ def _run_batch_eval(version: str) -> dict:
                 return existing
 
         model = get_model_cached(
-            mv.model_name, mv.model_version, mv.artifact_path,
+            mv.model_name,
+            mv.model_version,
+            mv.artifact_path,
             architecture=mv.architecture,
         )
 
         images, labels = get_mnist_subset(n=N_EVAL_SAMPLES)
-        dataset = list(zip(images.split(BATCH_SIZE), labels.split(BATCH_SIZE)))
+        dataset = list(
+            zip(images.split(BATCH_SIZE), labels.split(BATCH_SIZE), strict=True)
+        )
 
         start = time.perf_counter()
         result = predict_batch(model, dataset)  # type: ignore[arg-type]
@@ -120,23 +124,33 @@ def main() -> None:
 
     # --- Step 1: Train baseline (default arch) ---
     print(f"\n[1/5] Training baseline {MODEL_NAME}@{BASELINE_VERSION} (arch=default)")
-    _train_and_register(BASELINE_VERSION, architecture="default", epochs=3, do_promote=True)
+    _train_and_register(
+        BASELINE_VERSION, architecture="default", epochs=3, do_promote=True
+    )
 
     # --- Step 2: Train candidate (large arch) ---
     print(f"\n[2/5] Training candidate {MODEL_NAME}@{CANDIDATE_VERSION} (arch=large)")
     _train_and_register(CANDIDATE_VERSION, architecture="large", epochs=3)
 
     # --- Step 3: Evaluate baseline ---
-    print(f"\n[3/5] Evaluating {MODEL_NAME}@{BASELINE_VERSION} on {N_EVAL_SAMPLES} samples")
+    print(
+        f"\n[3/5] Evaluating {MODEL_NAME}@{BASELINE_VERSION} on {N_EVAL_SAMPLES} samples"
+    )
     baseline_metrics = _run_batch_eval(BASELINE_VERSION)
-    print(f"  accuracy={baseline_metrics['accuracy']:.4f}  "
-          f"p95={baseline_metrics['p95_ms']:.3f}ms")
+    print(
+        f"  accuracy={baseline_metrics['accuracy']:.4f}  "
+        f"p95={baseline_metrics['p95_ms']:.3f}ms"
+    )
 
     # --- Step 4: Evaluate candidate ---
-    print(f"\n[4/5] Evaluating {MODEL_NAME}@{CANDIDATE_VERSION} on {N_EVAL_SAMPLES} samples")
+    print(
+        f"\n[4/5] Evaluating {MODEL_NAME}@{CANDIDATE_VERSION} on {N_EVAL_SAMPLES} samples"
+    )
     candidate_metrics = _run_batch_eval(CANDIDATE_VERSION)
-    print(f"  accuracy={candidate_metrics['accuracy']:.4f}  "
-          f"p95={candidate_metrics['p95_ms']:.3f}ms")
+    print(
+        f"  accuracy={candidate_metrics['accuracy']:.4f}  "
+        f"p95={candidate_metrics['p95_ms']:.3f}ms"
+    )
 
     # --- Step 5: Regression gate ---
     print(f"\n[5/5] Running regression gate: {CANDIDATE_VERSION} vs {BASELINE_VERSION}")
@@ -156,14 +170,18 @@ def main() -> None:
         mark = "PASS" if check["passed"] else "FAIL"
         print(f"  [{mark}] {check['check']}")
         if "drop" in check:
-            print(f"        baseline={check['baseline']:.4f}  "
-                  f"candidate={check['candidate']:.4f}  "
-                  f"drop={check['drop']:.4f}  threshold={check['threshold']}")
+            print(
+                f"        baseline={check['baseline']:.4f}  "
+                f"candidate={check['candidate']:.4f}  "
+                f"drop={check['drop']:.4f}  threshold={check['threshold']}"
+            )
         if "increase_pct" in check:
-            print(f"        baseline={check['baseline_ms']:.3f}ms  "
-                  f"candidate={check['candidate_ms']:.3f}ms  "
-                  f"increase={check['increase_pct']:.1f}%  "
-                  f"threshold={check['threshold_pct']:.0f}%")
+            print(
+                f"        baseline={check['baseline_ms']:.3f}ms  "
+                f"candidate={check['candidate_ms']:.3f}ms  "
+                f"increase={check['increase_pct']:.1f}%  "
+                f"threshold={check['threshold_pct']:.0f}%"
+            )
 
     # --- Promote or keep baseline ---
     if gate_result.passed:

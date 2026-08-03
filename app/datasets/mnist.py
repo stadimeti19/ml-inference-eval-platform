@@ -6,10 +6,12 @@ import torch
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 
-MNIST_TRANSFORM = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.1307,), (0.3081,)),
-])
+MNIST_TRANSFORM = transforms.Compose(
+    [
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,)),
+    ]
+)
 
 
 def get_mnist_train(download_dir: str = "./data") -> datasets.MNIST:

@@ -15,9 +15,7 @@ from app.inference.model import load_model
 _MAX_CACHE_SIZE = 5
 _REDIS_STATS_KEY = "platform:model_cache:stats"
 _lock = threading.Lock()
-_cache: collections.OrderedDict[tuple[str, str], nn.Module] = (
-    collections.OrderedDict()
-)
+_cache: collections.OrderedDict[tuple[str, str], nn.Module] = collections.OrderedDict()
 _redis_lock = threading.RLock()
 _redis_client: Any | None = None
 _redis_disabled = False
@@ -175,9 +173,7 @@ def _get_shared_stats() -> dict[str, float | int] | None:
         "cache_hits": int(float(decoded.get("cache_hits", 0))),
         "cache_misses": int(float(decoded.get("cache_misses", 0))),
         "model_load_count": int(float(decoded.get("model_load_count", 0))),
-        "total_model_load_time_ms": float(
-            decoded.get("total_model_load_time_ms", 0.0)
-        ),
+        "total_model_load_time_ms": float(decoded.get("total_model_load_time_ms", 0.0)),
     }
 
 

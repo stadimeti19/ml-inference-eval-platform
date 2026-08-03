@@ -17,10 +17,10 @@ from app.db.models import (
     SloPolicy,
 )
 
-
 # ---------------------------------------------------------------------------
 # Model Registry
 # ---------------------------------------------------------------------------
+
 
 def register_model(
     session: Session,
@@ -77,9 +77,9 @@ def promote_model(
 ) -> ModelVersion | None:
     """Set *model_version* to prod and demote all other versions to staging."""
     # Demote existing prod
-    session.query(ModelVersion).filter_by(
-        model_name=model_name, status="prod"
-    ).update({"status": "staging"})
+    session.query(ModelVersion).filter_by(model_name=model_name, status="prod").update(
+        {"status": "staging"}
+    )
 
     mv = get_model(session, model_name=model_name, model_version=model_version)
     if mv is None:
@@ -94,9 +94,9 @@ def promote_model(
 def rollback_model(session: Session, *, model_name: str) -> ModelVersion | None:
     """Revert to the previous prod version (most recent staging)."""
     # Demote current prod
-    session.query(ModelVersion).filter_by(
-        model_name=model_name, status="prod"
-    ).update({"status": "staging"})
+    session.query(ModelVersion).filter_by(model_name=model_name, status="prod").update(
+        {"status": "staging"}
+    )
 
     # Pick the most recently created staging version
     prev = (
@@ -127,6 +127,7 @@ def list_models(
 # ---------------------------------------------------------------------------
 # Deployment Events
 # ---------------------------------------------------------------------------
+
 
 def create_deployment_event(
     session: Session,
@@ -191,6 +192,7 @@ def get_previous_prod_version_from_events(
 # Batch Jobs
 # ---------------------------------------------------------------------------
 
+
 def create_batch_job(
     session: Session,
     *,
@@ -238,6 +240,7 @@ def get_batch_job(session: Session, *, job_id: str) -> BatchJob | None:
 # Gate Results
 # ---------------------------------------------------------------------------
 
+
 def save_gate_result(
     session: Session,
     *,
@@ -263,6 +266,7 @@ def save_gate_result(
 # ---------------------------------------------------------------------------
 # Shadow Results
 # ---------------------------------------------------------------------------
+
 
 def save_shadow_result(
     session: Session,
@@ -318,7 +322,9 @@ def get_shadow_summary(
     agreed = sum(1 for r in rows if r.agreed)
     prod_latencies = [float(r.prod_latency_ms) for r in rows]
     shadow_latencies = [float(r.shadow_latency_ms) for r in rows]
-    latency_deltas = [s - p for p, s in zip(prod_latencies, shadow_latencies)]
+    latency_deltas = [
+        s - p for p, s in zip(prod_latencies, shadow_latencies, strict=True)
+    ]
     avg_prod_ms = sum(prod_latencies) / total
     avg_shadow_ms = sum(shadow_latencies) / total
     avg_delta_ms = sum(latency_deltas) / total
@@ -429,6 +435,7 @@ def _percentile(values: list[float], percentile: float) -> float:
 # SLO Policies
 # ---------------------------------------------------------------------------
 
+
 def create_slo_policy(
     session: Session,
     *,
@@ -452,9 +459,7 @@ def get_slo_policy(session: Session, *, name: str) -> SloPolicy | None:
     return session.query(SloPolicy).filter_by(name=name).first()
 
 
-def get_slo_policies_for_model(
-    session: Session, *, model_name: str
-) -> list[SloPolicy]:
+def get_slo_policies_for_model(session: Session, *, model_name: str) -> list[SloPolicy]:
     return list(
         session.query(SloPolicy)
         .filter_by(model_name=model_name)

@@ -49,6 +49,19 @@ def test_dashboard_loads(dash_client):
     assert "v1.0.0" in resp.text
     assert "LLM Providers" in resp.text
     assert "openai:gpt-4o-mini" in resp.text
+    assert "/static/dashboard.css" in resp.text
+    assert "/static/dashboard.js" in resp.text
+
+
+def test_dashboard_static_assets_load(dash_client):
+    """Dashboard CSS and JavaScript are served by the application."""
+    css = dash_client.get("/static/dashboard.css")
+    javascript = dash_client.get("/static/dashboard.js")
+
+    assert css.status_code == 200
+    assert "text/css" in css.headers["content-type"]
+    assert javascript.status_code == 200
+    assert "javascript" in javascript.headers["content-type"]
 
 
 def test_dashboard_promote(dash_client):

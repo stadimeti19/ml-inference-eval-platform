@@ -33,14 +33,18 @@ def main() -> None:
             raise SystemExit(
                 f"No prod model found for {args.model_name}. Run make train first."
             )
-        baseline_metrics = json.loads(prod.metrics) if prod.metrics else {
-            "accuracy": 0.98,
-            "p50_ms": 0.05,
-            "p95_ms": 0.06,
-            "p99_ms": 0.07,
-            "throughput_qps": 18000.0,
-            "n_samples": 10000,
-        }
+        baseline_metrics = (
+            json.loads(prod.metrics)
+            if prod.metrics
+            else {
+                "accuracy": 0.98,
+                "p50_ms": 0.05,
+                "p95_ms": 0.06,
+                "p99_ms": 0.07,
+                "throughput_qps": 18000.0,
+                "n_samples": 10000,
+            }
+        )
     finally:
         session.close()
 
@@ -58,10 +62,20 @@ def main() -> None:
             min(float(baseline_metrics.get("accuracy", 0.0)) + args.accuracy_lift, 1.0),
             6,
         ),
-        "p50_ms": round(float(baseline_metrics.get("p50_ms", 0.0)) * args.latency_multiplier, 3),
-        "p95_ms": round(float(baseline_metrics.get("p95_ms", 0.0)) * args.latency_multiplier, 3),
-        "p99_ms": round(float(baseline_metrics.get("p99_ms", 0.0)) * args.latency_multiplier, 3),
-        "throughput_qps": round(float(baseline_metrics.get("throughput_qps", 1.0)) / args.latency_multiplier, 2),
+        "p50_ms": round(
+            float(baseline_metrics.get("p50_ms", 0.0)) * args.latency_multiplier, 3
+        ),
+        "p95_ms": round(
+            float(baseline_metrics.get("p95_ms", 0.0)) * args.latency_multiplier, 3
+        ),
+        "p99_ms": round(
+            float(baseline_metrics.get("p99_ms", 0.0)) * args.latency_multiplier, 3
+        ),
+        "throughput_qps": round(
+            float(baseline_metrics.get("throughput_qps", 1.0))
+            / args.latency_multiplier,
+            2,
+        ),
         "simulation": "accuracy improves, latency violates regression gate",
     }
 

@@ -4,6 +4,41 @@ version = "0.1.0"
 description = "Foundation Model Inference & Evaluation Platform"
 requires-python = ">=3.11"
 
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501", "UP017"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["B008"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+show_error_codes = true
+warn_redundant_casts = true
+exclude = ["migrations/versions"]
+
+[tool.coverage.run]
+branch = true
+source = ["app", "platform_cli"]
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+skip_covered = true
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

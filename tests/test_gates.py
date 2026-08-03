@@ -26,6 +26,7 @@ def test_gate_pass(db_session):
     # Patch get_session where it was imported (inside app.eval.gates)
     with patch("app.eval.gates.get_session", return_value=db_session):
         from app.eval.gates import run_regression_gate
+
         result = run_regression_gate("m", "v2", "v1")
 
     assert result.passed is True
@@ -40,6 +41,7 @@ def test_gate_fail_accuracy(db_session):
 
     with patch("app.eval.gates.get_session", return_value=db_session):
         from app.eval.gates import run_regression_gate
+
         result = run_regression_gate("m", "v2", "v1")
 
     assert result.passed is False
@@ -55,6 +57,7 @@ def test_gate_fail_latency(db_session):
 
     with patch("app.eval.gates.get_session", return_value=db_session):
         from app.eval.gates import run_regression_gate
+
         result = run_regression_gate("m", "v2", "v1")
 
     assert result.passed is False
@@ -70,6 +73,7 @@ def test_gate_report_contains_deployment_decision_fields(db_session):
 
     with patch("app.eval.gates.get_session", return_value=db_session):
         from app.eval.gates import run_regression_gate
+
         result = run_regression_gate("m", "v2", "v1")
 
     details = json.loads(result.details)

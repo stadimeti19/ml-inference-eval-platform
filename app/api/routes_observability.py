@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
@@ -52,7 +51,7 @@ def batch_metrics() -> dict:
 
 
 @router.get("/metrics/platform")
-def platform_metrics(model_name: Optional[str] = Query(None)) -> dict:
+def platform_metrics(model_name: str | None = Query(None)) -> dict:
     session = get_session()
     try:
         models = repo.list_models(session, model_name=model_name)
@@ -80,7 +79,7 @@ def platform_metrics(model_name: Optional[str] = Query(None)) -> dict:
 
 @router.get("/deployments/events")
 def deployment_events(
-    model_name: Optional[str] = Query(None),
+    model_name: str | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
 ) -> list[dict]:
     session = get_session()

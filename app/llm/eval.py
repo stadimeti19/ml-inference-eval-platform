@@ -27,16 +27,18 @@ def compare_llm_models(
     stable output shape now, and can later be replaced by deterministic graders,
     human labels, or LLM-as-judge evals.
     """
-    results = []
+    results: list[dict[str, Any]] = []
     for model_id in model_ids:
         model = get_llm_model(model_id)
         if model is None:
-            results.append({
-                "model_id": model_id,
-                "error": "model not registered",
-                "quality_score": 0.0,
-                "bias_risk_score": 1.0,
-            })
+            results.append(
+                {
+                    "model_id": model_id,
+                    "error": "model not registered",
+                    "quality_score": 0.0,
+                    "bias_risk_score": 1.0,
+                }
+            )
             continue
         provider = get_provider(model)
         generation = provider.generate(
@@ -51,10 +53,10 @@ def compare_llm_models(
     ranked = sorted(
         results,
         key=lambda r: (
-            r.get("quality_score", 0.0),
-            -r.get("bias_risk_score", 1.0),
-            -r.get("estimated_cost_usd", 999.0),
-            -r.get("latency_ms", 999999.0),
+            float(r.get("quality_score", 0.0)),
+            -float(r.get("bias_risk_score", 1.0)),
+            -float(r.get("estimated_cost_usd", 999.0)),
+            -float(r.get("latency_ms", 999999.0)),
         ),
         reverse=True,
     )

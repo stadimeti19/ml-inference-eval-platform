@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -20,11 +20,12 @@ router = APIRouter(prefix="/batch")
 # Schemas
 # -------------------------------------------------------------------
 
+
 class BatchSubmitRequest(BaseModel):
     model_name: str
-    model_version: Optional[str] = None
+    model_version: str | None = None
     dataset_id: str = "mnist_10000"
-    config: Optional[dict[str, Any]] = None
+    config: dict[str, Any] | None = None
 
 
 class BatchSubmitResponse(BaseModel):
@@ -35,12 +36,13 @@ class BatchSubmitResponse(BaseModel):
 class BatchStatusResponse(BaseModel):
     job_id: str
     status: str
-    result_metrics: Optional[dict[str, Any]] = None
+    result_metrics: dict[str, Any] | None = None
 
 
 # -------------------------------------------------------------------
 # Endpoints
 # -------------------------------------------------------------------
+
 
 @router.post("/submit", response_model=BatchSubmitResponse)
 def submit_batch(req: BatchSubmitRequest) -> BatchSubmitResponse:
@@ -72,6 +74,7 @@ def submit_batch(req: BatchSubmitRequest) -> BatchSubmitResponse:
         # Attempt to enqueue via RQ; gracefully degrade if Redis unavailable
         try:
             from app.jobs.queue import get_queue
+
             q = get_queue()
             q.enqueue("app.jobs.tasks.run_batch_inference", job.id)
             logger.info("batch_job_enqueued", job_id=job.id)
@@ -82,6 +85,7 @@ def submit_batch(req: BatchSubmitRequest) -> BatchSubmitResponse:
             )
             # Fallback: run synchronously
             from app.jobs.tasks import run_batch_inference
+
             run_batch_inference(job.id)
 
         return BatchSubmitResponse(job_id=job.id, status=job.status)

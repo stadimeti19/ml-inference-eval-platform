@@ -17,12 +17,8 @@ class Settings:
     model_artifacts_dir: str = field(
         default_factory=lambda: os.getenv("MODEL_ARTIFACTS_DIR", "./artifacts")
     )
-    log_level: str = field(
-        default_factory=lambda: os.getenv("LOG_LEVEL", "INFO")
-    )
-    queue_name: str = field(
-        default_factory=lambda: os.getenv("QUEUE_NAME", "default")
-    )
+    log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
+    queue_name: str = field(default_factory=lambda: os.getenv("QUEUE_NAME", "default"))
     torch_num_threads: int = field(
         default_factory=lambda: int(os.getenv("TORCH_NUM_THREADS", "1"))
     )
@@ -30,12 +26,16 @@ class Settings:
         default_factory=lambda: int(os.getenv("TORCH_INTEROP_THREADS", "1"))
     )
     preload_prod_models: bool = field(
-        default_factory=lambda: os.getenv("PRELOAD_PROD_MODELS", "true").lower()
-        in {"1", "true", "yes", "on"}
+        default_factory=lambda: (
+            os.getenv("PRELOAD_PROD_MODELS", "true").lower()
+            in {"1", "true", "yes", "on"}
+        )
     )
     llm_enable_live_providers: bool = field(
-        default_factory=lambda: os.getenv("LLM_ENABLE_LIVE_PROVIDERS", "false").lower()
-        in {"1", "true", "yes", "on"}
+        default_factory=lambda: (
+            os.getenv("LLM_ENABLE_LIVE_PROVIDERS", "false").lower()
+            in {"1", "true", "yes", "on"}
+        )
     )
     openai_api_key: str | None = field(
         default_factory=lambda: os.getenv("OPENAI_API_KEY")

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import subprocess
-import sys
 
 
 def main() -> None:
@@ -27,16 +26,20 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=3, help="Training epochs")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument(
-        "--promote", action="store_true", default=False,
+        "--promote",
+        action="store_true",
+        default=False,
         help="Promote this version to prod after registration",
     )
     args = parser.parse_args()
 
     from app.inference.model import train_mnist_model
-    from app.registry.manager import register, promote
+    from app.registry.manager import promote, register
 
-    print(f"=== Training {args.model_name}@{args.model_version} "
-          f"(arch={args.architecture}, epochs={args.epochs}) ===")
+    print(
+        f"=== Training {args.model_name}@{args.model_version} "
+        f"(arch={args.architecture}, epochs={args.epochs}) ==="
+    )
 
     saved_path = train_mnist_model(
         epochs=args.epochs,
@@ -77,7 +80,7 @@ def main() -> None:
         promote(model_name=args.model_name, model_version=args.model_version)
         print(f"Done. {args.model_name}@{args.model_version} is now in production.")
     else:
-        print(f"Done. Model registered as staging. Use 'promote' to push to prod.")
+        print("Done. Model registered as staging. Use 'promote' to push to prod.")
 
 
 if __name__ == "__main__":

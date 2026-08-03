@@ -54,22 +54,28 @@ def run_batch_inference(job_id: str) -> None:
             return
 
         model = get_model_cached(
-            mv.model_name, mv.model_version, mv.artifact_path,
+            mv.model_name,
+            mv.model_version,
+            mv.artifact_path,
             architecture=mv.architecture,
         )
 
         # Load dataset subset
         from app.datasets.mnist import get_mnist_subset
+
         n_samples = _parse_dataset_id(job.dataset_id)
         images, labels = get_mnist_subset(n=n_samples)
 
         config: dict = json.loads(job.config) if job.config else {}
         batch_size = config.get("batch_size", 64)
 
-        dataset = list(zip(
-            images.split(batch_size),
-            labels.split(batch_size),
-        ))
+        dataset = list(
+            zip(
+                images.split(batch_size),
+                labels.split(batch_size),
+                strict=True,
+            )
+        )
         loader: DataLoader = dataset  # type: ignore[assignment]
 
         start = time.perf_counter()

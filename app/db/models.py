@@ -27,9 +27,7 @@ class ModelVersion(Base):
     )
     git_sha: Mapped[str | None] = mapped_column(String(40), nullable=True)
     tags: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON string
-    status: Mapped[str] = mapped_column(
-        String(16), nullable=False, default="staging"
-    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="staging")
     architecture: Mapped[str] = mapped_column(
         String(64), nullable=False, default="default", server_default="default"
     )
@@ -52,9 +50,7 @@ class BatchJob(Base):
     model_version: Mapped[str] = mapped_column(String(64), nullable=False)
     dataset_id: Mapped[str] = mapped_column(String(128), nullable=False)
     config: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON string
-    status: Mapped[str] = mapped_column(
-        String(16), nullable=False, default="queued"
-    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")
     result_metrics: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
@@ -106,10 +102,7 @@ class DeploymentEvent(Base):
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<DeploymentEvent {self.event_type} "
-            f"{self.model_name}@{self.version}>"
-        )
+        return f"<DeploymentEvent {self.event_type} {self.model_name}@{self.version}>"
 
 
 class ShadowResult(Base):

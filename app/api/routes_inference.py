@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -33,10 +33,11 @@ router = APIRouter()
 # Request / Response schemas
 # -------------------------------------------------------------------
 
+
 class PredictRequest(BaseModel):
     model_name: str
-    model_version: Optional[str] = None
-    shadow_version: Optional[str] = None
+    model_version: str | None = None
+    shadow_version: str | None = None
     image_b64: str
 
 
@@ -51,12 +52,13 @@ class PredictResponse(BaseModel):
     prediction: int
     latency_ms: float
     model_version: str
-    shadow: Optional[ShadowDetail] = None
+    shadow: ShadowDetail | None = None
 
 
 # -------------------------------------------------------------------
 # Endpoints
 # -------------------------------------------------------------------
+
 
 @router.post("/predict", response_model=PredictResponse)
 def predict(req: PredictRequest) -> PredictResponse:
@@ -91,7 +93,9 @@ def predict(req: PredictRequest) -> PredictResponse:
 
         # --- Run prod inference ---
         model = get_model_cached(
-            mv.model_name, mv.model_version, mv.artifact_path,
+            mv.model_name,
+            mv.model_version,
+            mv.artifact_path,
             architecture=mv.architecture,
         )
         prediction, latency_ms = predict_single(model, req.image_b64)
@@ -160,8 +164,10 @@ def _run_shadow(
             return None
 
         shadow_model = get_model_cached(
-            shadow_mv.model_name, shadow_mv.model_version,
-            shadow_mv.artifact_path, architecture=shadow_mv.architecture,
+            shadow_mv.model_name,
+            shadow_mv.model_version,
+            shadow_mv.artifact_path,
+            architecture=shadow_mv.architecture,
         )
         shadow_pred, shadow_latency = predict_single(shadow_model, image_b64)
         agreed = prod_prediction == shadow_pred
@@ -215,11 +221,12 @@ def _run_shadow(
 # Shadow results API
 # -------------------------------------------------------------------
 
+
 @router.get("/shadow/results")
 def shadow_results(
     model_name: str = Query(..., description="Model name"),
     shadow_version: str = Query(..., description="Shadow model version"),
-    prod_version: Optional[str] = Query(None, description="Filter by prod version"),
+    prod_version: str | None = Query(None, description="Filter by prod version"),
 ) -> dict:
     """Return aggregated shadow comparison metrics."""
     session = get_session()
@@ -236,9 +243,9 @@ def shadow_results(
 
 @router.delete("/shadow/results")
 def clear_shadow_results(
-    model_name: Optional[str] = Query(None, description="Filter by model name"),
-    shadow_version: Optional[str] = Query(None, description="Filter by shadow version"),
-    prod_version: Optional[str] = Query(None, description="Filter by prod version"),
+    model_name: str | None = Query(None, description="Filter by model name"),
+    shadow_version: str | None = Query(None, description="Filter by shadow version"),
+    prod_version: str | None = Query(None, description="Filter by prod version"),
 ) -> dict:
     """Clear shadow comparison rows, optionally scoped by model/version."""
     session = get_session()

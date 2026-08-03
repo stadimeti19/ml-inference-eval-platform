@@ -204,6 +204,7 @@ def test_shadow_db_records(shadow_client):
     session = get_session()
     try:
         from app.db.models import ShadowResult
+
         results = session.query(ShadowResult).all()
         assert len(results) == 1
         r = results[0]

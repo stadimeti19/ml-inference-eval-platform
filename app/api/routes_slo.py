@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
@@ -20,6 +20,7 @@ router = APIRouter(prefix="/slo", tags=["slo"])
 # -------------------------------------------------------------------
 # Request / Response schemas
 # -------------------------------------------------------------------
+
 
 class CreatePolicyRequest(BaseModel):
     name: str
@@ -53,6 +54,7 @@ class SloCheckResponse(BaseModel):
 # Endpoints
 # -------------------------------------------------------------------
 
+
 @router.post("/policies", response_model=PolicyResponse, status_code=201)
 def create_policy(req: CreatePolicyRequest) -> PolicyResponse:
     """Create a new SLO policy."""
@@ -83,17 +85,16 @@ def create_policy(req: CreatePolicyRequest) -> PolicyResponse:
 
 @router.get("/policies", response_model=list[PolicyResponse])
 def list_policies(
-    model_name: Optional[str] = Query(None, description="Filter by model name"),
+    model_name: str | None = Query(None, description="Filter by model name"),
 ) -> list[PolicyResponse]:
     """List SLO policies, optionally filtered by model name."""
     session = get_session()
     try:
         if model_name:
-            policies = repo.get_slo_policies_for_model(
-                session, model_name=model_name
-            )
+            policies = repo.get_slo_policies_for_model(session, model_name=model_name)
         else:
             from app.db.models import SloPolicy
+
             policies = list(session.query(SloPolicy).all())
 
         return [

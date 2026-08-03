@@ -28,6 +28,7 @@ templates = Jinja2Templates(directory=_TEMPLATE_DIR)
 # Dashboard HTML
 # -------------------------------------------------------------------
 
+
 @router.get("", response_class=HTMLResponse)
 def dashboard(request: Request) -> HTMLResponse:
     """Render the main dashboard page."""
@@ -90,7 +91,9 @@ def dashboard(request: Request) -> HTMLResponse:
             "disagreed": shadow_total - sum(s["agreed"] for s in shadow_pairs),
         }
         shadow_chart_latency = {
-            "labels": [f"{s['prod_version']} vs {s['shadow_version']}" for s in shadow_pairs],
+            "labels": [
+                f"{s['prod_version']} vs {s['shadow_version']}" for s in shadow_pairs
+            ],
             "prod": [round(s["avg_prod_ms"], 2) for s in shadow_pairs],
             "shadow": [round(s["avg_shadow_ms"], 2) for s in shadow_pairs],
         }
@@ -125,7 +128,8 @@ def dashboard(request: Request) -> HTMLResponse:
 
 def _get_shadow_pairs(session: Any) -> list[dict[str, Any]]:
     """Build per-(prod, shadow) pair summaries."""
-    from sqlalchemy import Integer, case, func as sa_func
+    from sqlalchemy import case
+    from sqlalchemy import func as sa_func
 
     rows = (
         session.query(
@@ -150,22 +154,25 @@ def _get_shadow_pairs(session: Any) -> list[dict[str, Any]]:
     for r in rows:
         total = int(r.total)
         agreed = int(r.agreed_raw or 0)
-        pairs.append({
-            "model_name": r.model_name,
-            "prod_version": r.prod_version,
-            "shadow_version": r.shadow_version,
-            "total": total,
-            "agreed": agreed,
-            "rate": agreed / total if total > 0 else 0.0,
-            "avg_prod_ms": float(r.avg_prod_ms or 0),
-            "avg_shadow_ms": float(r.avg_shadow_ms or 0),
-        })
+        pairs.append(
+            {
+                "model_name": r.model_name,
+                "prod_version": r.prod_version,
+                "shadow_version": r.shadow_version,
+                "total": total,
+                "agreed": agreed,
+                "rate": agreed / total if total > 0 else 0.0,
+                "avg_prod_ms": float(r.avg_prod_ms or 0),
+                "avg_shadow_ms": float(r.avg_shadow_ms or 0),
+            }
+        )
     return pairs
 
 
 # -------------------------------------------------------------------
 # Dashboard API actions (called via JS fetch)
 # -------------------------------------------------------------------
+
 
 class PromoteRequest(BaseModel):
     model_name: str
@@ -183,6 +190,7 @@ def api_promote(req: PromoteRequest) -> dict:
     mv = promote(model_name=req.model_name, model_version=req.model_version)
     if mv is None:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Model not found")
     return {
         "model_name": mv.model_name,

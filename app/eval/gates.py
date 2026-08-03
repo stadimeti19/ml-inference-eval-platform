@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from app.core.logging import get_logger
 from app.db import repositories as repo
@@ -100,7 +101,7 @@ def run_regression_gate(
                 missing.append(f"candidate {candidate_version}")
             if baseline is None:
                 missing.append(f"baseline {baseline_version}")
-            detail = {
+            detail: dict[str, Any] = {
                 "error": f"Model version(s) not found: {', '.join(missing)}",
                 "reason": "Gate could not run because required model metadata is missing",
                 "recommendation": "Register both model versions before gating.",
@@ -147,14 +148,16 @@ def run_regression_gate(
         acc_ok = acc_drop <= MAX_ACCURACY_DROP
         if not acc_ok:
             passed = False
-        checks.append({
-            "check": "accuracy_drop",
-            "baseline": base_acc,
-            "candidate": cand_acc,
-            "drop": round(acc_drop, 6),
-            "threshold": MAX_ACCURACY_DROP,
-            "passed": acc_ok,
-        })
+        checks.append(
+            {
+                "check": "accuracy_drop",
+                "baseline": base_acc,
+                "candidate": cand_acc,
+                "drop": round(acc_drop, 6),
+                "threshold": MAX_ACCURACY_DROP,
+                "passed": acc_ok,
+            }
+        )
 
         # P95 latency check
         cand_p95 = cand_metrics.get("p95_ms", 0.0)
@@ -167,14 +170,16 @@ def run_regression_gate(
         p95_ok = p95_increase <= MAX_P95_LATENCY_INCREASE
         if not p95_ok:
             passed = False
-        checks.append({
-            "check": "p95_latency_increase",
-            "baseline_ms": base_p95,
-            "candidate_ms": cand_p95,
-            "increase_pct": round(p95_increase * 100, 2),
-            "threshold_pct": MAX_P95_LATENCY_INCREASE * 100,
-            "passed": p95_ok,
-        })
+        checks.append(
+            {
+                "check": "p95_latency_increase",
+                "baseline_ms": base_p95,
+                "candidate_ms": cand_p95,
+                "increase_pct": round(p95_increase * 100, 2),
+                "threshold_pct": MAX_P95_LATENCY_INCREASE * 100,
+                "passed": p95_ok,
+            }
+        )
 
         failed_checks = [c["check"] for c in checks if not c["passed"]]
         threshold_pct = MAX_P95_LATENCY_INCREASE * 100

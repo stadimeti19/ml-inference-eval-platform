@@ -7,12 +7,10 @@ import io
 import time
 from dataclasses import dataclass, field
 
-import numpy as np
 import torch
+import torch.nn as nn
 from PIL import Image
 from torch.utils.data import DataLoader
-
-import torch.nn as nn
 
 from app.datasets.mnist import MNIST_TRANSFORM
 
@@ -32,9 +30,7 @@ def _preprocess_image(image_bytes: bytes) -> torch.Tensor:
     return tensor.unsqueeze(0)  # (1, 1, 28, 28)
 
 
-def predict_single(
-    model: nn.Module, image_b64: str
-) -> tuple[int, float]:
+def predict_single(model: nn.Module, image_b64: str) -> tuple[int, float]:
     """Run single-image inference.
 
     Args:

@@ -179,11 +179,13 @@ class BaseLLMProvider:
         input_tokens = estimate_tokens(prompt)
         digest = hashlib.sha256(f"{model.id}:{prompt}".encode()).hexdigest()[:8]
         if json_mode:
-            output = json.dumps({
-                "summary": f"Mock response from {model.display_name}",
-                "decision": "candidate",
-                "trace_id": digest,
-            })
+            output = json.dumps(
+                {
+                    "summary": f"Mock response from {model.display_name}",
+                    "decision": "candidate",
+                    "trace_id": digest,
+                }
+            )
         else:
             clipped = " ".join(prompt.split()[:32])
             output = (
@@ -210,7 +212,10 @@ class OpenAIProvider(BaseLLMProvider):
 
     def generate(self, **kwargs: Any) -> LLMGenerationResult:
         model = kwargs["model"]
-        if not self.settings.llm_enable_live_providers or not self.settings.openai_api_key:
+        if (
+            not self.settings.llm_enable_live_providers
+            or not self.settings.openai_api_key
+        ):
             return super().generate(**kwargs)
         start = time.perf_counter()
         prompt = kwargs["prompt"]
@@ -241,7 +246,10 @@ class GeminiProvider(BaseLLMProvider):
 
     def generate(self, **kwargs: Any) -> LLMGenerationResult:
         model = kwargs["model"]
-        if not self.settings.llm_enable_live_providers or not self.settings.gemini_api_key:
+        if (
+            not self.settings.llm_enable_live_providers
+            or not self.settings.gemini_api_key
+        ):
             return super().generate(**kwargs)
         start = time.perf_counter()
         prompt = kwargs["prompt"]
@@ -266,7 +274,10 @@ class AnthropicProvider(BaseLLMProvider):
 
     def generate(self, **kwargs: Any) -> LLMGenerationResult:
         model = kwargs["model"]
-        if not self.settings.llm_enable_live_providers or not self.settings.anthropic_api_key:
+        if (
+            not self.settings.llm_enable_live_providers
+            or not self.settings.anthropic_api_key
+        ):
             return super().generate(**kwargs)
         start = time.perf_counter()
         prompt = kwargs["prompt"]
@@ -307,7 +318,9 @@ def get_llm_model(model_id: str) -> LLMModelConfig | None:
     return next((m for m in DEFAULT_LLM_MODELS if m.id == model_id), None)
 
 
-def get_provider(model: LLMModelConfig, settings: Settings | None = None) -> BaseLLMProvider:
+def get_provider(
+    model: LLMModelConfig, settings: Settings | None = None
+) -> BaseLLMProvider:
     providers: dict[str, type[BaseLLMProvider]] = {
         "openai": OpenAIProvider,
         "gemini": GeminiProvider,
@@ -342,7 +355,9 @@ def estimate_tokens(text: str) -> int:
     return max(1, int(len(text.split()) * 1.3))
 
 
-def estimate_cost(model: LLMModelConfig, input_tokens: int, output_tokens: int) -> float:
+def estimate_cost(
+    model: LLMModelConfig, input_tokens: int, output_tokens: int
+) -> float:
     return round(
         (input_tokens / 1000.0 * model.input_cost_per_1k)
         + (output_tokens / 1000.0 * model.output_cost_per_1k),
@@ -383,9 +398,15 @@ def _extract_openai_text(body: dict[str, Any]) -> str:
 
 def _extract_gemini_text(body: dict[str, Any]) -> str:
     parts = body.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-    return "\n".join(p.get("text", "") for p in parts if p.get("text")) or json.dumps(body)[:1000]
+    return (
+        "\n".join(p.get("text", "") for p in parts if p.get("text"))
+        or json.dumps(body)[:1000]
+    )
 
 
 def _extract_anthropic_text(body: dict[str, Any]) -> str:
     parts = body.get("content", [])
-    return "\n".join(p.get("text", "") for p in parts if p.get("type") == "text") or json.dumps(body)[:1000]
+    return (
+        "\n".join(p.get("text", "") for p in parts if p.get("type") == "text")
+        or json.dumps(body)[:1000]
+    )

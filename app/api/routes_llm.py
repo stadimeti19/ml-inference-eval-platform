@@ -74,7 +74,9 @@ def generate(req: LLMGenerateRequest) -> dict[str, Any]:
     """
     model = get_llm_model(req.model)
     if model is None:
-        raise HTTPException(status_code=404, detail=f"LLM model '{req.model}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"LLM model '{req.model}' not found"
+        )
     provider = get_provider(model)
     result = provider.generate(
         model=model,

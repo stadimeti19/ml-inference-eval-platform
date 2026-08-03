@@ -20,6 +20,7 @@ def cli() -> None:
 # Model Registry
 # -------------------------------------------------------------------
 
+
 @cli.command()
 @click.option("--model_name", required=True, help="Name of the model")
 @click.option("--model_version", required=True, help="Semantic version string")
@@ -98,6 +99,7 @@ def list_cmd(model_name: str | None) -> None:
 # -------------------------------------------------------------------
 # Regression Gate
 # -------------------------------------------------------------------
+
 
 @cli.command()
 @click.option("--model_name", required=True)

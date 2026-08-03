@@ -7,7 +7,6 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -20,9 +19,11 @@ ARCHITECTURES: dict[str, type[nn.Module]] = {}
 
 def _register_arch(name: str):
     """Decorator to register a model class under *name*."""
+
     def wrapper(cls: type[nn.Module]) -> type[nn.Module]:
         ARCHITECTURES[name] = cls
         return cls
+
     return wrapper
 
 
@@ -66,9 +67,9 @@ class MNISTClassifierLarge(nn.Module):
         self.dropout = nn.Dropout(0.25)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.pool(F.relu(self.conv1(x)))   # (B,32,14,14)
-        x = self.pool(F.relu(self.conv2(x)))   # (B,64,7,7)
-        x = F.relu(self.conv3(x))              # (B,64,7,7)
+        x = self.pool(F.relu(self.conv1(x)))  # (B,32,14,14)
+        x = self.pool(F.relu(self.conv2(x)))  # (B,64,7,7)
+        x = F.relu(self.conv3(x))  # (B,64,7,7)
         x = x.view(x.size(0), -1)
         x = self.dropout(F.relu(self.fc1(x)))
         x = self.fc2(x)
@@ -168,7 +169,9 @@ def load_model(artifact_path: str, architecture: str = "default") -> nn.Module:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_cls = _get_arch_class(architecture)
     model = model_cls()
-    model.load_state_dict(torch.load(artifact_path, map_location=device, weights_only=True))
+    model.load_state_dict(
+        torch.load(artifact_path, map_location=device, weights_only=True)
+    )
     model.to(device)
     model.eval()
     return model

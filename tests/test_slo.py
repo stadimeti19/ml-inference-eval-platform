@@ -13,10 +13,10 @@ from app.db import repositories as repo
 from app.db.session import get_session, init_db
 from app.eval.slo import evaluate_slo
 
-
 # -------------------------------------------------------------------
 # Unit tests for the evaluate_slo engine (no DB needed)
 # -------------------------------------------------------------------
+
 
 class TestEvaluateSlo:
     """Pure-function tests for the constraint checker."""
@@ -97,6 +97,7 @@ class TestEvaluateSlo:
 # Integration tests for SLO gate (with DB)
 # -------------------------------------------------------------------
 
+
 def test_slo_gate_pass(db_session):
     """Model meets all SLO constraints -> gate passes."""
     repo.register_model(
@@ -119,6 +120,7 @@ def test_slo_gate_pass(db_session):
 
     with patch("app.eval.slo.get_session", return_value=db_session):
         from app.eval.slo import run_slo_gate
+
         result = run_slo_gate("m", "v1", "prod_slo")
 
     assert result.passed is True
@@ -145,6 +147,7 @@ def test_slo_gate_fail(db_session):
 
     with patch("app.eval.slo.get_session", return_value=db_session):
         from app.eval.slo import run_slo_gate
+
         result = run_slo_gate("m", "v1", "strict_slo")
 
     assert result.passed is False
@@ -166,6 +169,7 @@ def test_slo_gate_missing_policy(db_session):
 
     with patch("app.eval.slo.get_session", return_value=db_session):
         from app.eval.slo import run_slo_gate
+
         result = run_slo_gate("m", "v1", "nonexistent")
 
     assert result.passed is False
@@ -190,6 +194,7 @@ def test_slo_gate_no_metrics(db_session):
 
     with patch("app.eval.slo.get_session", return_value=db_session):
         from app.eval.slo import run_slo_gate
+
         result = run_slo_gate("m", "v1", "slo1")
 
     assert result.passed is False
@@ -198,6 +203,7 @@ def test_slo_gate_no_metrics(db_session):
 # -------------------------------------------------------------------
 # API endpoint tests
 # -------------------------------------------------------------------
+
 
 @pytest.fixture()
 def slo_client(tmp_path):

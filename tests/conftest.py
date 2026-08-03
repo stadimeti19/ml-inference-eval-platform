@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import tempfile
-
 import pytest
 import torch
 from sqlalchemy import create_engine
@@ -17,7 +14,9 @@ from app.inference.model import MNISTClassifier
 @pytest.fixture()
 def db_session() -> Session:
     """In-memory SQLite session with tables created."""
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        "sqlite:///:memory:", connect_args={"check_same_thread": False}
+    )
     Base.metadata.create_all(bind=engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     session = factory()
@@ -53,6 +52,7 @@ def _set_env_for_tests(tmp_path, monkeypatch):
 
     # Reset the singleton engine so each test gets a fresh one
     from app.db import session as sess_mod
+
     sess_mod.reset_engine()
     yield
     sess_mod.reset_engine()

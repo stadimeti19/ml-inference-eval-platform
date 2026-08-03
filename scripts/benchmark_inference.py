@@ -177,7 +177,9 @@ async def run_benchmark(
     }
 
 
-def compare_reports(baseline: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+def compare_reports(
+    baseline: dict[str, Any], candidate: dict[str, Any]
+) -> dict[str, Any]:
     """Compare two benchmark reports."""
     base = baseline["summary"]
     cand = candidate["summary"]
@@ -231,7 +233,9 @@ def _cache_delta(
         return None
     hits = int(after.get("cache_hits", 0)) - int(before.get("cache_hits", 0))
     misses = int(after.get("cache_misses", 0)) - int(before.get("cache_misses", 0))
-    loads = int(after.get("model_load_count", 0)) - int(before.get("model_load_count", 0))
+    loads = int(after.get("model_load_count", 0)) - int(
+        before.get("model_load_count", 0)
+    )
     total = hits + misses
     return {
         "cache_hits": hits,
@@ -273,8 +277,11 @@ def _build_payloads(
         return [payload] * count
     if payload_mode == "random_per_request":
         rng = random.Random(seed)
-        dataset_len = _mnist_len(mnist_data_dir, train=payload_source == "mnist_train") \
-            if payload_source.startswith("mnist_") else None
+        dataset_len = (
+            _mnist_len(mnist_data_dir, train=payload_source == "mnist_train")
+            if payload_source.startswith("mnist_")
+            else None
+        )
         return [
             make_payload(
                 model_name=model_name,
@@ -362,7 +369,9 @@ def _load_mnist_dataset(mnist_data_dir: str, train: bool):
     try:
         from torchvision import datasets
     except Exception as exc:
-        raise RuntimeError("torchvision is required for --payload_source mnist_test") from exc
+        raise RuntimeError(
+            "torchvision is required for --payload_source mnist_test"
+        ) from exc
     try:
         return datasets.MNIST(root=mnist_data_dir, train=train, download=False)
     except RuntimeError as exc:

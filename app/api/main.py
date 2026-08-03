@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.routes_batch import router as batch_router
@@ -24,6 +26,7 @@ from app.db.session import get_session, init_db
 from app.inference.cache import get_model_cached
 
 logger = get_logger(__name__)
+_STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
 @asynccontextmanager
@@ -88,6 +91,7 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(RequestIdMiddleware)
+    app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 
     app.include_router(health_router)
     app.include_router(inference_router)

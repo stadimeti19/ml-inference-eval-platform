@@ -106,14 +106,16 @@ def evaluate_slo(
         actual = metrics.get(metric_name)
 
         if actual is None:
-            checks.append({
-                "constraint": constraint_name,
-                "metric_key": metric_name,
-                "threshold": threshold,
-                "actual": None,
-                "passed": False,
-                "reason": f"metric '{metric_name}' not found in model metrics",
-            })
+            checks.append(
+                {
+                    "constraint": constraint_name,
+                    "metric_key": metric_name,
+                    "threshold": threshold,
+                    "actual": None,
+                    "passed": False,
+                    "reason": f"metric '{metric_name}' not found in model metrics",
+                }
+            )
             all_passed = False
             continue
 
@@ -129,13 +131,15 @@ def evaluate_slo(
         if not ok:
             all_passed = False
 
-        checks.append({
-            "constraint": constraint_name,
-            "metric_key": metric_name,
-            "threshold": threshold,
-            "actual": round(actual, 6),
-            "passed": ok,
-        })
+        checks.append(
+            {
+                "constraint": constraint_name,
+                "metric_key": metric_name,
+                "threshold": threshold,
+                "actual": round(actual, 6),
+                "passed": ok,
+            }
+        )
 
     return {"passed": all_passed, "checks": checks}
 
@@ -167,9 +171,7 @@ def run_slo_gate(
                 details=detail,
             )
 
-        mv = repo.get_model(
-            session, model_name=model_name, model_version=model_version
-        )
+        mv = repo.get_model(session, model_name=model_name, model_version=model_version)
         if mv is None:
             detail = {"error": f"Model {model_name}@{model_version} not found"}
             return _save_slo_result_with_event(

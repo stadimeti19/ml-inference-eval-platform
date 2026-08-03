@@ -1,4 +1,4 @@
-.PHONY: setup up down test register-demo run-batch run-loadtest gate-demo train train-v2 pipeline migrate benchmark shadow llm-compare rollback-demo bad-model-demo clean
+.PHONY: setup setup-dev up down test test-cov lint format typecheck quality register-demo run-batch run-loadtest gate-demo train train-v2 pipeline migrate benchmark shadow llm-compare rollback-demo bad-model-demo clean
 
 export PYTHONPATH := $(shell pwd)
 
@@ -8,6 +8,9 @@ export PYTHONPATH := $(shell pwd)
 
 setup:
 	pip install -r requirements.txt
+
+setup-dev:
+	pip install -r requirements-dev.txt
 
 migrate:
 	alembic upgrade head
@@ -59,6 +62,21 @@ bad-model-demo:
 
 test:
 	python -m pytest tests/ -v
+
+test-cov:
+	python -m pytest --cov=app --cov=platform_cli --cov-report=term-missing --cov-report=xml
+
+lint:
+	ruff check .
+
+format:
+	ruff format .
+	ruff check --fix .
+
+typecheck:
+	mypy app platform_cli scripts
+
+quality: lint typecheck test-cov
 
 serve:
 	PYTHONPATH=$(shell pwd) uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000

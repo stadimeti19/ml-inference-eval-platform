@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import threading
 from collections import defaultdict
-from typing import DefaultDict
 
 import numpy as np
 
 _lock = threading.Lock()
-_inference_request_count: DefaultDict[str, int] = defaultdict(int)
-_prediction_error_count: DefaultDict[str, int] = defaultdict(int)
-_inference_latencies_ms: DefaultDict[str, list[float]] = defaultdict(list)
+_inference_request_count: defaultdict[str, int] = defaultdict(int)
+_prediction_error_count: defaultdict[str, int] = defaultdict(int)
+_inference_latencies_ms: defaultdict[str, list[float]] = defaultdict(list)
 
 
 def record_inference_request(model_name: str, latency_ms: float) -> None:
