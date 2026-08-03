@@ -13,7 +13,14 @@ from pydantic import BaseModel
 from sqlalchemy import func
 
 from app.db import repositories as repo
-from app.db.models import BatchJob, GateResult, ShadowResult, SloPolicy
+from app.db.models import (
+    BatchJob,
+    Deployment,
+    EvaluationReport,
+    GateResult,
+    ShadowResult,
+    SloPolicy,
+)
 from app.db.session import get_session
 from app.inference.cache import get_cache_stats
 from app.llm.providers import get_llm_models, provider_status
@@ -76,6 +83,15 @@ def dashboard(request: Request) -> HTMLResponse:
         cache_stats = get_cache_stats()
         llm_models = get_llm_models()
         llm_provider_status = provider_status()
+        release_deployments = list(
+            session.query(Deployment).order_by(Deployment.updated_at.desc()).all()
+        )
+        evaluation_reports = list(
+            session.query(EvaluationReport)
+            .order_by(EvaluationReport.created_at.desc())
+            .limit(20)
+            .all()
+        )
 
         # Shadow data
         shadow_pairs = _get_shadow_pairs(session)
@@ -115,6 +131,8 @@ def dashboard(request: Request) -> HTMLResponse:
                 "cache_stats": cache_stats,
                 "llm_models": llm_models,
                 "llm_provider_status": llm_provider_status,
+                "release_deployments": release_deployments,
+                "evaluation_reports": evaluation_reports,
                 "shadow_pairs": shadow_pairs,
                 "shadow_total": shadow_total,
                 "shadow_agg_rate": shadow_agg_rate,

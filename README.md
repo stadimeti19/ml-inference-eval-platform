@@ -14,6 +14,10 @@ to run locally. The platform workflow—not MNIST—is the focus.
 - Asynchronous batch evaluation with Redis and RQ workers
 - A model registry backed by SQLAlchemy and versioned Alembic migrations
 - Candidate-versus-baseline gates for accuracy and p95 latency regressions
+- Versioned datasets and content-addressed, immutable evaluation reports
+- Database-backed gate policies with absolute and baseline-relative constraints
+- Enforced release states from registration through canary and production
+- Deterministic percentage canaries with persisted health and automatic rollback
 - Shadow inference that records agreement and latency without changing responses
 - Configurable SLO policies, deployment events, promotion, and rollback
 - Prometheus metrics and an included Grafana dashboard definition
@@ -29,8 +33,16 @@ train -> register -> evaluate -> gate -> promote
                        +-> shadow candidate against production traffic
 ```
 
-The demo gate allows at most a 1% accuracy drop and a 10% p95-latency increase.
-Every gate and deployment decision is recorded for later inspection.
+The legacy demo gate allows at most a 1% accuracy drop and a 10% p95-latency
+increase. Release-control policies can define their own `min`, `max`,
+`max_drop`, and `max_increase_pct` rules. Every gate and deployment transition
+is recorded for later inspection.
+
+```text
+registered -> evaluated -> approved -> shadow -> canary -> production
+     |            |           |          |         |
+     +----------> failed <-----+----------+         +-> rolled_back
+```
 
 ## Architecture
 
@@ -156,9 +168,10 @@ tests/            API, registry, inference, gate, SLO, and dashboard tests
 This is a portfolio/reference implementation, not a hosted production service.
 It currently has no authentication, authorization, rate limiting, distributed
 model cache, cloud artifact store, or automated public deployment. Shadow work
-runs within the request path, and the demo's fixed gate thresholds are not a
-replacement for domain-specific release policy. Those boundaries are deliberate
-and documented so the project does not overstate its production readiness.
+runs within the request path. Canary health is persisted, but traffic assignment
+still happens inside one API service rather than at an external gateway. Those
+boundaries are deliberate and documented so the project does not overstate its
+production readiness.
 
 ## License
 

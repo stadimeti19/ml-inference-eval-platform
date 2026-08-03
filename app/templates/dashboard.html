@@ -17,6 +17,7 @@
     <a class="nav-item" data-tab="shadow" onclick="switchTab('shadow')">Shadow Traffic</a>
     <a class="nav-item" data-tab="slo" onclick="switchTab('slo')">SLO Policies</a>
     <a class="nav-item" data-tab="gates" onclick="switchTab('gates')">Gate History</a>
+    <a class="nav-item" data-tab="release" onclick="switchTab('release')">Release Control</a>
     <a class="nav-item" data-tab="deployments" onclick="switchTab('deployments')">Deployments</a>
   </nav>
 
@@ -377,6 +378,29 @@
       {% else %}
       <div class="empty"><div class="empty-icon">&#128203;</div>No gate results yet.<br>Run the pipeline or an SLO check to generate results.</div>
       {% endif %}
+    </div>
+
+    <div id="tab-release" class="tab">
+      <h2 style="margin-bottom:24px;">Release Control</h2>
+      {% if release_deployments %}
+      <div class="tbl-wrap">
+        <div class="tbl-title">Progressive Rollouts</div>
+        <table>
+          <thead><tr><th>Model</th><th>Baseline</th><th>Candidate</th><th>State</th><th>Traffic</th><th>Requests</th><th>Errors</th><th>Reason</th></tr></thead>
+          <tbody>{% for d in release_deployments %}<tr>
+            <td class="mono">{{ d.model_name }}</td><td class="mono">{{ d.baseline_version or '-' }}</td><td class="mono">{{ d.candidate_version }}</td>
+            <td><span class="badge {% if d.state in ['production'] %}badge-pass{% elif d.state in ['failed','rolled_back'] %}badge-fail{% else %}badge-staging{% endif %}">{{ d.state }}</span></td>
+            <td class="mono">{{ d.traffic_percentage }}%</td><td class="mono">{{ d.request_count }}</td><td class="mono">{{ d.error_count }}</td><td>{{ d.last_reason or '-' }}</td>
+          </tr>{% endfor %}</tbody>
+        </table>
+      </div>
+      {% else %}<div class="empty">No progressive deployment has been started.</div>{% endif %}
+
+      {% if evaluation_reports %}
+      <div class="tbl-wrap"><div class="tbl-title">Immutable Evaluation Reports</div><table>
+        <thead><tr><th>Model</th><th>Version</th><th>Dataset ID</th><th>Content Hash</th><th>Created</th></tr></thead>
+        <tbody>{% for r in evaluation_reports %}<tr><td class="mono">{{ r.model_name }}</td><td class="mono">{{ r.model_version }}</td><td class="mono">{{ r.dataset_version_id }}</td><td class="mono">{{ r.content_hash[:12] }}</td><td>{{ r.created_at }}</td></tr>{% endfor %}</tbody>
+      </table></div>{% endif %}
     </div>
 
     <!-- ============================================================ -->

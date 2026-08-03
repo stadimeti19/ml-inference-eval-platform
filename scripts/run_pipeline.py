@@ -22,6 +22,7 @@ from app.inference.cache import get_model_cached
 from app.inference.model import train_mnist_model
 from app.inference.predict import predict_batch
 from app.registry.manager import list_models, promote, register
+from app.release.control import create_evaluation_report
 
 logger = get_logger(__name__)
 
@@ -91,12 +92,12 @@ def _run_batch_eval(version: str) -> dict:
         )
 
         images, labels = get_mnist_subset(n=N_EVAL_SAMPLES)
-        dataset = list(
+        batches = list(
             zip(images.split(BATCH_SIZE), labels.split(BATCH_SIZE), strict=True)
         )
 
         start = time.perf_counter()
-        result = predict_batch(model, dataset)  # type: ignore[arg-type]
+        result = predict_batch(model, batches)  # type: ignore[arg-type]
         duration = time.perf_counter() - start
 
         metrics = compute_eval_metrics(
@@ -107,8 +108,31 @@ def _run_batch_eval(version: str) -> dict:
         metrics["total_time_s"] = round(duration, 3)
         metrics["n_samples"] = len(result.predictions)
 
-        mv.metrics = json.dumps(metrics)
-        session.commit()
+        dataset = next(
+            (
+                item
+                for item in repo.list_dataset_versions(session)
+                if item.name == "mnist_test" and item.version == "torchvision-v1"
+            ),
+            None,
+        )
+        if dataset is None:
+            dataset = repo.create_dataset_version(
+                session,
+                name="mnist_test",
+                version="torchvision-v1",
+                uri="torchvision://MNIST/test",
+                checksum="builtin:torchvision-mnist-test-v1",
+                metadata={"samples": N_EVAL_SAMPLES},
+            )
+        create_evaluation_report(
+            session,
+            model_name=MODEL_NAME,
+            model_version=version,
+            dataset_version_id=dataset.id,
+            metrics=metrics,
+            config={"batch_size": BATCH_SIZE},
+        )
 
         return metrics
     finally:

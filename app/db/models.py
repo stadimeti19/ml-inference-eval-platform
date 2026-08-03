@@ -5,7 +5,17 @@ from __future__ import annotations
 import datetime
 import uuid
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    event,
+    func,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -160,3 +170,127 @@ class SloPolicy(Base):
 
     def __repr__(self) -> str:
         return f"<SloPolicy {self.name} model={self.model_name}>"
+
+
+class DatasetVersion(Base):
+    """Immutable pointer to the exact dataset used by an evaluation."""
+
+    __tablename__ = "dataset_versions"
+    __table_args__ = (
+        UniqueConstraint("name", "version", name="uq_dataset_name_version"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    version: Mapped[str] = mapped_column(String(64), nullable=False)
+    uri: Mapped[str] = mapped_column(String(1024), nullable=False)
+    checksum: Mapped[str] = mapped_column(String(128), nullable=False)
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class EvaluationRun(Base):
+    """Execution lifecycle for one model/dataset evaluation."""
+
+    __tablename__ = "evaluation_runs"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    dataset_version_id: Mapped[str] = mapped_column(
+        String(36), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="running")
+    config_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    started_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
+
+
+class EvaluationReport(Base):
+    """Append-only result of evaluating one model against one dataset version."""
+
+    __tablename__ = "evaluation_reports"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    evaluation_run_id: Mapped[str] = mapped_column(
+        String(36), nullable=False, unique=True
+    )
+    dataset_version_id: Mapped[str] = mapped_column(
+        String(36), nullable=False, index=True
+    )
+    metrics_json: Mapped[str] = mapped_column(Text, nullable=False)
+    config_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class GatePolicy(Base):
+    """Reusable absolute and baseline-relative release constraints."""
+
+    __tablename__ = "gate_policies"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    constraints_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class Deployment(Base):
+    """Current rollout state and persisted canary health for one model."""
+
+    __tablename__ = "deployments"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    model_name: Mapped[str] = mapped_column(
+        String(255), nullable=False, unique=True, index=True
+    )
+    baseline_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    candidate_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="registered", index=True
+    )
+    traffic_percentage: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0
+    )
+    min_requests: Mapped[int] = mapped_column(Integer, nullable=False, default=20)
+    max_error_rate: Mapped[float] = mapped_column(Float, nullable=False, default=0.05)
+    max_avg_latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    latency_sum_ms: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    last_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+@event.listens_for(EvaluationReport, "before_update")
+@event.listens_for(EvaluationReport, "before_delete")
+def _prevent_evaluation_report_mutation(*_: object) -> None:
+    raise ValueError("Evaluation reports are immutable")

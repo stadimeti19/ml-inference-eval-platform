@@ -129,3 +129,57 @@ Provider readiness and mock/live mode can be checked independently:
 ```bash
 curl -s "$PLATFORM_URL/llm/provider-status" | python -m json.tool
 ```
+
+## Progressive release control
+
+Register the exact evaluation dataset, then save append-only reports for the
+baseline and candidate. Repeating an identical report request returns the same
+content-addressed report.
+
+```bash
+curl -s -X POST "$PLATFORM_URL/release/datasets" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"mnist_test","version":"v1","uri":"torchvision://MNIST/test","checksum":"builtin:mnist-test-v1"}'
+
+curl -s -X POST "$PLATFORM_URL/release/evaluations" \
+  -H 'Content-Type: application/json' \
+  -d '{"model_name":"mnist_cnn","model_version":"v2.0.0","dataset_version_id":"<dataset-id>","metrics":{"accuracy":0.98,"p95_ms":12.0}}'
+
+curl -s "$PLATFORM_URL/release/evaluation-runs?model_name=mnist_cnn" \
+  | python -m json.tool
+```
+
+Create a reusable policy and a deployment. The policy supports `min`, `max`,
+`max_drop`, and `max_increase_pct` rules.
+
+```bash
+curl -s -X POST "$PLATFORM_URL/release/gate-policies" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"safe-release","model_name":"mnist_cnn","constraints":{"accuracy":{"min":0.97,"max_drop":0.01},"p95_ms":{"max_increase_pct":10}}}'
+
+curl -s -X POST "$PLATFORM_URL/release/deployments" \
+  -H 'Content-Type: application/json' \
+  -d '{"model_name":"mnist_cnn","candidate_version":"v2.0.0","min_requests":20,"max_error_rate":0.02,"max_avg_latency_ms":20}'
+
+curl -s -X POST "$PLATFORM_URL/release/deployments/mnist_cnn/evaluate" \
+  -H 'Content-Type: application/json' \
+  -d '{"policy_name":"safe-release","candidate_report_id":"<candidate-report-id>","baseline_report_id":"<baseline-report-id>"}'
+```
+
+Advance an approved deployment through shadow and canary. Invalid state jumps
+are rejected. Canary assignment uses `routing_key`, or the request ID when it is
+omitted, so the same caller is routed consistently.
+
+```bash
+curl -s -X POST "$PLATFORM_URL/release/deployments/mnist_cnn/transition" \
+  -H 'Content-Type: application/json' \
+  -d '{"target_state":"shadow","reason":"offline shadow checks passed"}'
+
+curl -s -X POST "$PLATFORM_URL/release/deployments/mnist_cnn/transition" \
+  -H 'Content-Type: application/json' \
+  -d '{"target_state":"canary","reason":"begin 10% rollout","traffic_percentage":10}'
+```
+
+Canary requests update persisted error and latency health. Once `min_requests`
+is reached, a breached threshold sets the deployment to `rolled_back`, stops
+candidate traffic, records an audit event, and continues serving production.

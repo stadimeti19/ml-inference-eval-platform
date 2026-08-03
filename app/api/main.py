@@ -17,6 +17,7 @@ from app.api.routes_health import router as health_router
 from app.api.routes_inference import router as inference_router
 from app.api.routes_llm import router as llm_router
 from app.api.routes_observability import router as observability_router
+from app.api.routes_release import router as release_router
 from app.api.routes_slo import router as slo_router
 from app.core.config import get_settings
 from app.core.logging import get_logger, setup_logging
@@ -99,6 +100,7 @@ def create_app() -> FastAPI:
     app.include_router(slo_router)
     app.include_router(llm_router)
     app.include_router(observability_router)
+    app.include_router(release_router)
     app.include_router(dashboard_router)
 
     return app

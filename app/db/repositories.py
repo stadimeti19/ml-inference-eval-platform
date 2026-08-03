@@ -10,12 +10,163 @@ from sqlalchemy.orm import Session
 
 from app.db.models import (
     BatchJob,
+    DatasetVersion,
+    Deployment,
     DeploymentEvent,
+    EvaluationReport,
+    EvaluationRun,
+    GatePolicy,
     GateResult,
     ModelVersion,
     ShadowResult,
     SloPolicy,
 )
+
+# ---------------------------------------------------------------------------
+# Release control
+# ---------------------------------------------------------------------------
+
+
+def create_dataset_version(
+    session: Session,
+    *,
+    name: str,
+    version: str,
+    uri: str,
+    checksum: str,
+    metadata: dict[str, Any] | None = None,
+) -> DatasetVersion:
+    dataset = DatasetVersion(
+        name=name,
+        version=version,
+        uri=uri,
+        checksum=checksum,
+        metadata_json=json.dumps(metadata) if metadata else None,
+    )
+    session.add(dataset)
+    session.commit()
+    session.refresh(dataset)
+    return dataset
+
+
+def get_dataset_version(session: Session, dataset_id: str) -> DatasetVersion | None:
+    return session.query(DatasetVersion).filter_by(id=dataset_id).first()
+
+
+def list_dataset_versions(session: Session) -> list[DatasetVersion]:
+    return list(
+        session.query(DatasetVersion).order_by(desc(DatasetVersion.created_at)).all()
+    )
+
+
+def save_evaluation_report(
+    session: Session,
+    *,
+    model_name: str,
+    model_version: str,
+    evaluation_run_id: str,
+    dataset_version_id: str,
+    metrics: dict[str, Any],
+    config: dict[str, Any],
+    content_hash: str,
+) -> EvaluationReport:
+    report = EvaluationReport(
+        model_name=model_name,
+        model_version=model_version,
+        evaluation_run_id=evaluation_run_id,
+        dataset_version_id=dataset_version_id,
+        metrics_json=json.dumps(metrics, sort_keys=True),
+        config_json=json.dumps(config, sort_keys=True),
+        content_hash=content_hash,
+    )
+    session.add(report)
+    session.commit()
+    session.refresh(report)
+    return report
+
+
+def create_evaluation_run(
+    session: Session,
+    *,
+    model_name: str,
+    model_version: str,
+    dataset_version_id: str,
+    config: dict[str, Any],
+) -> EvaluationRun:
+    run = EvaluationRun(
+        model_name=model_name,
+        model_version=model_version,
+        dataset_version_id=dataset_version_id,
+        status="running",
+        config_json=json.dumps(config, sort_keys=True),
+    )
+    session.add(run)
+    session.commit()
+    session.refresh(run)
+    return run
+
+
+def list_evaluation_runs(
+    session: Session, *, model_name: str | None = None
+) -> list[EvaluationRun]:
+    query = session.query(EvaluationRun).order_by(desc(EvaluationRun.started_at))
+    if model_name:
+        query = query.filter_by(model_name=model_name)
+    return list(query.all())
+
+
+def get_evaluation_report(session: Session, report_id: str) -> EvaluationReport | None:
+    return session.query(EvaluationReport).filter_by(id=report_id).first()
+
+
+def list_evaluation_reports(
+    session: Session, *, model_name: str | None = None, model_version: str | None = None
+) -> list[EvaluationReport]:
+    query = session.query(EvaluationReport).order_by(desc(EvaluationReport.created_at))
+    if model_name:
+        query = query.filter_by(model_name=model_name)
+    if model_version:
+        query = query.filter_by(model_version=model_version)
+    return list(query.all())
+
+
+def create_gate_policy(
+    session: Session, *, name: str, model_name: str, constraints: dict[str, Any]
+) -> GatePolicy:
+    policy = GatePolicy(
+        name=name, model_name=model_name, constraints_json=json.dumps(constraints)
+    )
+    session.add(policy)
+    session.commit()
+    session.refresh(policy)
+    return policy
+
+
+def get_gate_policy(session: Session, name: str) -> GatePolicy | None:
+    return session.query(GatePolicy).filter_by(name=name).first()
+
+
+def list_gate_policies(
+    session: Session, model_name: str | None = None
+) -> list[GatePolicy]:
+    query = session.query(GatePolicy).order_by(desc(GatePolicy.created_at))
+    if model_name:
+        query = query.filter_by(model_name=model_name)
+    return list(query.all())
+
+
+def get_deployment(
+    session: Session, model_name: str, *, for_update: bool = False
+) -> Deployment | None:
+    query = session.query(Deployment).filter_by(model_name=model_name)
+    if for_update:
+        query = query.with_for_update()
+    return query.first()
+
+
+def list_deployments(session: Session) -> list[Deployment]:
+    return list(session.query(Deployment).order_by(desc(Deployment.updated_at)).all())
+
 
 # ---------------------------------------------------------------------------
 # Model Registry

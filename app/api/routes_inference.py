@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from app.core.logging import get_logger
@@ -24,6 +24,7 @@ from app.db import repositories as repo
 from app.db.session import get_session
 from app.inference.cache import get_model_cached
 from app.inference.predict import predict_single
+from app.release.control import record_canary_result, should_route_to_canary
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -38,6 +39,7 @@ class PredictRequest(BaseModel):
     model_name: str
     model_version: str | None = None
     shadow_version: str | None = None
+    routing_key: str | None = None
     image_b64: str
 
 
@@ -53,6 +55,8 @@ class PredictResponse(BaseModel):
     latency_ms: float
     model_version: str
     shadow: ShadowDetail | None = None
+    served_by: str = "production"
+    automatic_rollback: bool = False
 
 
 # -------------------------------------------------------------------
@@ -61,7 +65,7 @@ class PredictResponse(BaseModel):
 
 
 @router.post("/predict", response_model=PredictResponse)
-def predict(req: PredictRequest) -> PredictResponse:
+def predict(req: PredictRequest, request: Request) -> PredictResponse:
     """Run single-image inference, optionally with shadow model comparison.
 
     When ``shadow_version`` is provided, the candidate model runs in
@@ -73,12 +77,27 @@ def predict(req: PredictRequest) -> PredictResponse:
     session = get_session()
     try:
         # --- Resolve prod model ---
+        canary_deployment = None
+        baseline_mv = repo.get_prod_model(session, model_name=req.model_name)
         if req.model_version:
             mv = repo.get_model(
                 session, model_name=req.model_name, model_version=req.model_version
             )
         else:
-            mv = repo.get_prod_model(session, model_name=req.model_name)
+            mv = baseline_mv
+            deployment = repo.get_deployment(session, req.model_name, for_update=True)
+            routing_key = req.routing_key or request.state.request_id
+            if deployment is not None and should_route_to_canary(
+                deployment, routing_key
+            ):
+                candidate = repo.get_model(
+                    session,
+                    model_name=req.model_name,
+                    model_version=deployment.candidate_version,
+                )
+                if candidate:
+                    mv = candidate
+                    canary_deployment = deployment
 
         if mv is None:
             REQUEST_COUNT.labels(
@@ -92,13 +111,46 @@ def predict(req: PredictRequest) -> PredictResponse:
             )
 
         # --- Run prod inference ---
-        model = get_model_cached(
-            mv.model_name,
-            mv.model_version,
-            mv.artifact_path,
-            architecture=mv.architecture,
-        )
-        prediction, latency_ms = predict_single(model, req.image_b64)
+        automatic_rollback = False
+        served_by = "canary" if canary_deployment else "production"
+        try:
+            model = get_model_cached(
+                mv.model_name,
+                mv.model_version,
+                mv.artifact_path,
+                architecture=mv.architecture,
+            )
+            prediction, latency_ms = predict_single(model, req.image_b64)
+            if canary_deployment:
+                automatic_rollback = record_canary_result(
+                    session,
+                    deployment=canary_deployment,
+                    latency_ms=latency_ms,
+                    error=False,
+                )
+        except Exception:
+            if canary_deployment is None or baseline_mv is None:
+                raise
+            automatic_rollback = record_canary_result(
+                session,
+                deployment=canary_deployment,
+                latency_ms=0.0,
+                error=True,
+            )
+            logger.exception(
+                "canary_inference_failed_falling_back",
+                model_name=req.model_name,
+                candidate_version=canary_deployment.candidate_version,
+            )
+            mv = baseline_mv
+            served_by = "production_fallback"
+            model = get_model_cached(
+                mv.model_name,
+                mv.model_version,
+                mv.artifact_path,
+                architecture=mv.architecture,
+            )
+            prediction, latency_ms = predict_single(model, req.image_b64)
 
         total_ms = (time.perf_counter() - start) * 1000.0
         REQUEST_LATENCY.labels(endpoint="/predict", model_name=req.model_name).observe(
@@ -127,6 +179,8 @@ def predict(req: PredictRequest) -> PredictResponse:
             latency_ms=round(latency_ms, 3),
             model_version=mv.model_version,
             shadow=shadow_detail,
+            served_by=served_by,
+            automatic_rollback=automatic_rollback,
         )
     except HTTPException:
         raise
